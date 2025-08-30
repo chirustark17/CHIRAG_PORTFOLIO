@@ -39,7 +39,7 @@ const portfolioData = {
     { role: "B.Tech, Computer Science & Data Science", period: "2022 - 2026", description: "Presidency University, Bangalore | CGPA: 8.61" }
   ],
   certifications: [
-    "AI/ML for Geodata Analysis – ISRO & IIRS", "Data Analysis with R – Google (Coursera)", "Data Science BootCamp – GeeksforGeeks", "Deloitte Data Analytics Job Simulation", "AI with Python - Infosys Springboard", "Prompt Engineering for Developers – DeepLearning.AI"
+    "AI/ML for Geodata Analysis – ISRO & IIRS", "Data Analysis with R – Google (Coursera)", "Data Science BootCamp – GeeksforGeeks", "Cloud Technical Series - AI Agents edition - Google Cloud Asia Pacific","Deloitte Data Analytics Job Simulation", "AI with Python - Infosys Springboard", "Prompt Engineering for Developers – DeepLearning.AI"
   ]
 };
 
