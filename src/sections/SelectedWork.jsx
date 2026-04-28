@@ -58,15 +58,6 @@ export function SelectedWork() {
     if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current)
   }, [])
 
-  useEffect(() => {
-    function onAdvance() {
-      pauseAutoRotate()
-      setActive(a => (a + 1) % TOTAL)
-    }
-    window.addEventListener('chirag-mode:advance-carousel', onAdvance)
-    return () => window.removeEventListener('chirag-mode:advance-carousel', onAdvance)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
   function goLeft() {
     pauseAutoRotate()
     setActive(a => (a - 1 + TOTAL) % TOTAL)

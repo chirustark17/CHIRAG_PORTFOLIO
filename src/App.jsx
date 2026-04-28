@@ -1,11 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { MotionConfig } from 'framer-motion'
 import Navbar from './components/Navbar'
 import AuroraBackground from './components/AuroraBackground'
 import Footer from './components/Footer'
 import ScrollToTop from './components/ScrollToTop'
-import ChiragModeOrb from './components/ChiragModeOrb'
-import ChiragModeTour from './components/ChiragModeTour'
 import Hero from './sections/Hero'
 import About from './sections/About'
 import NowStrip from './sections/NowStrip'
@@ -17,16 +15,12 @@ import SelectedWork from './sections/SelectedWork'
 import Contact from './sections/Contact'
 
 function App() {
-  const [tourActive, setTourActive] = useState(false)
-
   useEffect(() => {
-    if (tourActive) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
-    return () => { document.body.style.overflow = '' }
-  }, [tourActive])
+    try {
+      localStorage.removeItem('chiragModeDismissed')
+      localStorage.removeItem('chiragInviteDismissed')
+    } catch {}
+  }, [])
 
   return (
     <MotionConfig reducedMotion="user">
@@ -53,8 +47,6 @@ function App() {
       </main>
       <Footer />
       <ScrollToTop />
-      <ChiragModeOrb onActivate={() => setTourActive(true)} />
-      <ChiragModeTour active={tourActive} onClose={() => setTourActive(false)} />
     </div>
     </MotionConfig>
   )
