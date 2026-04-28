@@ -1,120 +1,62 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useEffect, useState } from 'react'
+import { MotionConfig } from 'framer-motion'
+import Navbar from './components/Navbar'
+import AuroraBackground from './components/AuroraBackground'
+import Footer from './components/Footer'
+import ScrollToTop from './components/ScrollToTop'
+import ChiragModeOrb from './components/ChiragModeOrb'
+import ChiragModeTour from './components/ChiragModeTour'
+import Hero from './sections/Hero'
+import About from './sections/About'
+import NowStrip from './sections/NowStrip'
+import Projects from './sections/Projects'
+import Skills from './sections/Skills'
+import Certifications from './sections/Certifications'
+import Achievements from './sections/Achievements'
+import SelectedWork from './sections/SelectedWork'
+import Contact from './sections/Contact'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [tourActive, setTourActive] = useState(false)
+
+  useEffect(() => {
+    if (tourActive) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [tourActive])
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+    <MotionConfig reducedMotion="user">
+    <div className="relative min-h-screen">
+      <a
+        href="#home"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-100 focus:px-4 focus:py-2 focus:rounded focus:bg-cyan-400 focus:text-ink-950 focus:font-mono focus:text-xs focus:uppercase focus:tracking-wider"
+      >
+        Skip to content
+      </a>
+      <AuroraBackground />
+      <div className="grain" aria-hidden="true" />
+      <Navbar />
+      <main className="relative z-10">
+        <Hero />
+        <About />
+        <NowStrip />
+        <Projects />
+        <Skills />
+        <Certifications />
+        <Achievements />
+        <SelectedWork />
+        <Contact />
+      </main>
+      <Footer />
+      <ScrollToTop />
+      <ChiragModeOrb onActivate={() => setTourActive(true)} />
+      <ChiragModeTour active={tourActive} onClose={() => setTourActive(false)} />
+    </div>
+    </MotionConfig>
   )
 }
 
