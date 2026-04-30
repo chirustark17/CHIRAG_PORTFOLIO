@@ -8,6 +8,7 @@ import ReelHint from './components/ReelHint'
 import ReelButton from './components/ReelButton'
 import ReelDeck from './components/ReelDeck'
 import useReelTrigger from './hooks/useReelTrigger'
+import useIsMobile from './hooks/useIsMobile'
 import Hero from './sections/Hero'
 import About from './sections/About'
 import NowStrip from './sections/NowStrip'
@@ -17,11 +18,16 @@ import Certifications from './sections/Certifications'
 import Achievements from './sections/Achievements'
 import SelectedWork from './sections/SelectedWork'
 import Contact from './sections/Contact'
+import HeroMobile from './components/mobile/HeroMobile'
+import ProjectsMobile from './components/mobile/ProjectsMobile'
+import SelectedWorkMobile from './components/mobile/SelectedWorkMobile'
+import ReelDeckMobile from './components/mobile/ReelDeckMobile'
 
 function App() {
   const { showHint, dismissHint } = useReelTrigger()
   const [reelOpen, setReelOpen] = useState(false)
   const launchButtonRef = useRef(null)
+  const isMobile = useIsMobile()
 
   const launchReel = () => {
     dismissHint()
@@ -49,14 +55,14 @@ function App() {
       <div className="grain" aria-hidden="true" />
       <Navbar />
       <main className="relative z-10">
-        <Hero />
+        {isMobile ? <HeroMobile /> : <Hero />}
         <About />
         <NowStrip />
-        <Projects />
+        {isMobile ? <ProjectsMobile /> : <Projects />}
         <Skills />
         <Certifications />
         <Achievements />
-        <SelectedWork />
+        {isMobile ? <SelectedWorkMobile /> : <SelectedWork />}
         <Contact />
       </main>
       <Footer />
@@ -67,11 +73,9 @@ function App() {
         onLaunch={launchReel}
         onDismiss={dismissHint}
       />
-      <ReelDeck
-        open={reelOpen}
-        onClose={() => setReelOpen(false)}
-        launchButtonRef={launchButtonRef}
-      />
+      {isMobile
+        ? <ReelDeckMobile open={reelOpen} onClose={() => setReelOpen(false)} />
+        : <ReelDeck open={reelOpen} onClose={() => setReelOpen(false)} launchButtonRef={launchButtonRef} />}
     </div>
     </MotionConfig>
   )
