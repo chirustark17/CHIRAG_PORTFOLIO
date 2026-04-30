@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
-import { AnimatePresence, animate, motion, useMotionValue } from 'framer-motion'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { AnimatePresence, animate, motion, useMotionValue, useSpring } from 'framer-motion'
 import { Check, Copy, ExternalLink, Trophy } from 'lucide-react'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
+import { getTransitionVariants } from './ReelTransitions'
+import { TypewriterText } from './ReelSlides/TypewriterText'
+import { ParallaxCard } from './ReelSlides/ParallaxCard'
 
 const FOCUS_RING = 'focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-950'
 
@@ -39,17 +42,64 @@ function SlideWrapper({ slide, children }) {
 function TitleSlide({ slide }) {
   const reducedMotion = usePrefersReducedMotion()
   return (
-    <SlideWrapper slide={slide}>
+    <article className="w-full max-w-4xl mx-auto">
+      <header className="mb-6 md:mb-8">
+        <motion.span
+          className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan-400/85 block mb-3"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
+        >
+          {slide.eyebrow}
+        </motion.span>
+
+        <h2
+          id={`reel-slide-${slide.id}`}
+          className="font-serif text-5xl md:text-7xl lg:text-8xl text-bone-50 leading-tight"
+        >
+          <TypewriterText
+            text={slide.headline}
+            speed={80}
+            delay={200}
+            showCursor={true}
+          />
+        </h2>
+
+        <p className="font-sans text-lg md:text-xl text-bone-50/75 mt-3">
+          <TypewriterText
+            text={slide.subtitle}
+            speed={60}
+            delay={1100}
+            showCursor={true}
+          />
+        </p>
+      </header>
+
       <motion.div
         className="h-0.5 w-16 bg-cyan-400 mb-6"
         initial={{ scaleX: 0 }}
         animate={{ scaleX: 1 }}
-        transition={{ duration: reducedMotion ? 0 : 0.6, ease: 'easeOut' }}
+        transition={{
+          duration: reducedMotion ? 0.3 : 0.6,
+          ease: 'easeOut',
+          delay: reducedMotion ? 0 : 2.56,
+        }}
         style={{ transformOrigin: 'left' }}
         aria-hidden="true"
       />
-      <p className="font-mono text-sm text-bone-50/60">// {slide.tagline}</p>
-    </SlideWrapper>
+
+      <motion.p
+        className="font-mono text-sm text-bone-50/60"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{
+          duration: reducedMotion ? 0.3 : 0.5,
+          delay: reducedMotion ? 0 : 3.16,
+        }}
+      >
+        // {slide.tagline}
+      </motion.p>
+    </article>
   )
 }
 
@@ -108,47 +158,63 @@ function CredentialsSlide({ slide }) {
 
 // ─── Projects slide ───────────────────────────────────────────────────────────
 
-function ProjectCard({ proj }) {
-  const [imgError, setImgError] = useState(false)
-  return (
-    <div
-      className="rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_40px_-10px_rgba(34,211,238,0.2)]"
-      style={{
-        border: '1px solid rgba(34,211,238,0.2)',
-        background: 'rgba(10,8,16,0.6)',
-      }}
-    >
-      <div className="aspect-[16/10] overflow-hidden bg-bone-50/5">
-        {imgError ? (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-cyan-400/10 to-violet-500/10 font-serif text-lg text-bone-50/70 p-4 text-center">
-            {proj.title}
-          </div>
-        ) : (
-          <img
-            src={proj.image}
-            alt={`${proj.title} screenshot`}
-            loading="lazy"
-            decoding="async"
-            className="w-full h-full object-cover"
-            onError={() => setImgError(true)}
-          />
-        )}
-      </div>
-      <div className="p-4">
-        <h3 className="font-serif text-xl text-bone-50">{proj.title}</h3>
-        <p className="font-mono text-xs text-bone-50/65 mt-1">{proj.oneLiner}</p>
-      </div>
-    </div>
-  )
-}
-
 function ProjectsSlide({ slide }) {
+  const reducedMotion = usePrefersReducedMotion()
+  const [hovered, setHovered] = useState(null)
+  const containerRef = useRef(null)
+  const isTouch = useMemo(
+    () => typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches,
+    []
+  )
+
+  const mx = useMotionValue(0)
+  const my = useMotionValue(0)
+  const sx = useSpring(mx, { stiffness: 150, damping: 20 })
+  const sy = useSpring(my, { stiffness: 150, damping: 20 })
+
+  function handleMouseMove(e) {
+    if (isTouch || reducedMotion) return
+    const rect = containerRef.current.getBoundingClientRect()
+    const xNorm = ((e.clientX - rect.left) / rect.width) * 2 - 1
+    const yNorm = ((e.clientY - rect.top) / rect.height) * 2 - 1
+    mx.set(xNorm)
+    my.set(yNorm)
+  }
+
+  function handleMouseLeave() {
+    mx.set(0)
+    my.set(0)
+    setHovered(null)
+  }
+
   return (
     <SlideWrapper slide={slide}>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {slide.projects.map(proj => (
-          <ProjectCard key={proj.slug} proj={proj} />
-        ))}
+      <div
+        className="relative w-full"
+        style={{ perspective: '1200px', perspectiveOrigin: '50% 50%' }}
+      >
+        <div
+          className="grid grid-cols-1 md:grid-cols-3 gap-6"
+          style={{ transformStyle: 'preserve-3d' }}
+          ref={containerRef}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+        >
+          {slide.projects.map((proj, i) => (
+            <ParallaxCard
+              key={proj.slug}
+              project={proj}
+              index={i}
+              mouseX={sx}
+              mouseY={sy}
+              hoveredIndex={hovered}
+              onHover={() => setHovered(i)}
+              onLeave={() => setHovered(null)}
+              isTouch={isTouch}
+              reducedMotion={reducedMotion}
+            />
+          ))}
+        </div>
       </div>
     </SlideWrapper>
   )
@@ -310,34 +376,25 @@ function SlideRenderer({ slide }) {
   }
 }
 
-// ─── Viewport with directional animation ──────────────────────────────────────
+// ─── Viewport with per-pair transition variants ───────────────────────────────
 
 export function ReelSlideViewport({ currentSlide, direction }) {
   const reducedMotion = usePrefersReducedMotion()
 
-  const variants = {
-    enter: (dir) => ({
-      x: reducedMotion ? 0 : (dir === 'next' ? 60 : -60),
-      opacity: 0,
-    }),
-    center: { x: 0, opacity: 1 },
-    exit: (dir) => ({
-      x: reducedMotion ? 0 : (dir === 'next' ? -60 : 60),
-      opacity: 0,
-    }),
-  }
+  const variants = useMemo(
+    () => getTransitionVariants(currentSlide.kind, direction, reducedMotion),
+    [currentSlide.kind, direction, reducedMotion]
+  )
 
   return (
     <div className="relative w-full h-full overflow-hidden">
-      <AnimatePresence mode="wait" custom={direction}>
+      <AnimatePresence mode="wait">
         <motion.div
           key={currentSlide.id}
-          custom={direction}
-          variants={variants}
-          initial="enter"
-          animate="center"
-          exit="exit"
-          transition={{ duration: reducedMotion ? 0.25 : 0.5, ease: [0.22, 1, 0.36, 1] }}
+          initial={variants.initial}
+          animate={variants.animate}
+          exit={variants.exit}
+          transition={variants.transition}
           className="absolute inset-0 flex items-center justify-center p-6 md:p-12 lg:p-16 overflow-y-auto"
         >
           <SlideRenderer slide={currentSlide} />
