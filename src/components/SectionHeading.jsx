@@ -1,4 +1,4 @@
-export function SectionHeading({ eyebrow, title, subtitle, align = 'left' }) {
+export function SectionHeading({ eyebrow, title, subtitle, align = 'left', id }) {
   const isCenter = align === 'center'
 
   return (
@@ -10,7 +10,7 @@ export function SectionHeading({ eyebrow, title, subtitle, align = 'left' }) {
         </span>
       </div>
 
-      <h2 className="font-serif font-normal text-5xl md:text-6xl mt-4">{title}</h2>
+      <h2 id={id} className="font-serif font-normal text-5xl md:text-6xl mt-4">{title}</h2>
 
       <div className={`w-16 h-px bg-amber-500 mt-5 ${isCenter ? 'mx-auto' : ''}`} />
 
