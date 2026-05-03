@@ -24,7 +24,7 @@ function ProjectCard({ project, index, expanded, onToggle, reducedMotion }) {
           ) : (
             <img
               src={project.image}
-              alt={project.title + ' screenshot'}
+              alt={project.title}
               loading="lazy"
               decoding="async"
               className="w-full h-full object-cover"
@@ -58,7 +58,7 @@ function ProjectCard({ project, index, expanded, onToggle, reducedMotion }) {
         ) : (
           <img
             src={project.image}
-            alt={project.title + ' screenshot'}
+            alt={project.title}
             loading="lazy"
             decoding="async"
             className="w-full h-full object-cover"

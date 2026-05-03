@@ -38,7 +38,7 @@ export default function FeaturedPanelMobile({ slide, active }) {
         ) : reducedMotion ? (
           <img
             src={slide.image}
-            alt={slide.title + ' screenshot'}
+            alt={slide.title}
             loading="lazy"
             decoding="async"
             className="w-full h-full object-cover"
@@ -47,7 +47,7 @@ export default function FeaturedPanelMobile({ slide, active }) {
         ) : (
           <motion.img
             src={slide.image}
-            alt={slide.title + ' screenshot'}
+            alt={slide.title}
             loading="lazy"
             decoding="async"
             className="absolute inset-0 w-full h-[110%] object-cover"

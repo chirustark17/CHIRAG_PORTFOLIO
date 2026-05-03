@@ -45,7 +45,7 @@ export default function ProjectCardMobile({ project, variant }) {
           <div className="aspect-[4/3] w-full overflow-hidden relative">
             <ImageWithFallback
               src={project.image}
-              alt={project.title + ' screenshot'}
+              alt={project.title}
               className="w-full h-full object-cover"
             />
             <div
@@ -89,7 +89,7 @@ export default function ProjectCardMobile({ project, variant }) {
           <div className="aspect-[4/3] overflow-hidden">
             <ImageWithFallback
               src={project.image}
-              alt={project.title + ' screenshot'}
+              alt={project.title}
               className="w-full h-full object-cover"
             />
           </div>

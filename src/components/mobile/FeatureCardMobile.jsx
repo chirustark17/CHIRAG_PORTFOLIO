@@ -66,7 +66,7 @@ export default function FeatureCardMobile({ item, index }) {
         <div className="relative h-[360px] overflow-hidden">
           <ImageWithFallback
             src={item.image}
-            alt={item.title + ' featured screenshot'}
+            alt={item.title}
             className="absolute inset-0 w-full h-[110%] object-cover"
             style={reducedMotion ? {} : { y: parallaxY }}
           />
