@@ -9,12 +9,45 @@ import showcase from '../../data/showcase'
 import { SectionHeading } from '../SectionHeading'
 import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion'
 
-function CardVisual({ item }) {
+function CardVisual({ item, compact = false }) {
   const [imageFailed, setImageFailed] = useState(false)
+
+  if (compact) {
+    return (
+      <article
+        className="w-full h-full rounded-3xl overflow-hidden relative bg-ink-950 dark:bg-bone-50 border"
+        style={{
+          borderColor: 'rgba(34,211,238,0.18)',
+          boxShadow: '0 24px 60px -20px rgba(0,0,0,0.4)',
+        }}
+      >
+        <div className="w-full h-full overflow-hidden bg-ink-950/6">
+          {!imageFailed && item.image ? (
+            <img
+              src={item.image}
+              alt=""
+              aria-hidden="true"
+              className="w-full h-full object-cover"
+              loading="lazy"
+              decoding="async"
+              onError={() => setImageFailed(true)}
+            />
+          ) : (
+            <div
+              className="w-full h-full flex items-center justify-center font-serif text-2xl text-bone-50/70"
+              style={{
+                background: 'linear-gradient(135deg, rgba(34,211,238,0.18), rgba(124,58,237,0.18))',
+              }}
+            />
+          )}
+        </div>
+      </article>
+    )
+  }
 
   return (
     <article
-      className="w-full h-full rounded-3xl overflow-hidden relative border bg-ink-950/[0.04] dark:bg-bone-50/[0.025]"
+      className="w-full h-full rounded-3xl overflow-hidden relative border bg-ink-950 dark:bg-bone-50"
       style={{
         borderColor: 'rgba(34,211,238,0.18)',
         boxShadow: '0 24px 60px -20px rgba(0,0,0,0.4)',
@@ -70,10 +103,10 @@ function CardVisual({ item }) {
 }
 
 function BehindCard({ item, offset, reducedMotion }) {
-  const scale = offset === 1 ? 0.94 : 0.88
-  const yOffset = offset === 1 ? -10 : -18
-  const rotate = offset === 1 ? -2 : 2
-  const opacity = offset === 1 ? 0.85 : 0.55
+  const scale = offset === 1 ? 0.92 : 0.84
+  const yOffset = offset === 1 ? -14 : -24
+  const rotate = offset === 1 ? -3 : 3
+  const opacity = offset === 1 ? 0.6 : 0.3
 
   const transition = reducedMotion
     ? { duration: 0 }
@@ -88,7 +121,7 @@ function BehindCard({ item, offset, reducedMotion }) {
       style={{ width: 'min(100%, 360px)' }}
       aria-hidden="true"
     >
-      <CardVisual item={item} />
+      <CardVisual item={item} compact={true} />
     </motion.div>
   )
 }
