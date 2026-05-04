@@ -225,7 +225,7 @@ function ProjectsSlide({ slide }) {
 function FeaturedSlide({ slide }) {
   const [imgError, setImgError] = useState(false)
   return (
-    <div style={{ transform: 'scale(0.9)', transformOrigin: 'center center', width: '100%' }}>
+    <div style={{ transform: 'scale(0.85)', transformOrigin: 'center center', width: '100%' }}>
       <SlideWrapper slide={slide}>
         <div className="rounded-3xl overflow-hidden border border-current/15 w-full">
           {imgError ? (

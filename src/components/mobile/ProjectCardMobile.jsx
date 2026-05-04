@@ -55,7 +55,7 @@ export default function ProjectCardMobile({ project, variant }) {
             />
             <div className="absolute bottom-0 left-0 right-0 p-5">
               <h3 className="font-serif text-2xl text-bone-50">{project.title}</h3>
-              <p className="font-sans text-sm text-bone-50/85 mt-1">{project.description}</p>
+              <p className="font-sans text-sm text-bone-50/85 mt-1 line-clamp-2">{project.description}</p>
               <div className="flex flex-wrap gap-1.5 mt-3">
                 {visibleTech.map(t => (
                   <span
