@@ -395,7 +395,7 @@ export function ReelSlideViewport({ currentSlide, direction }) {
           animate={variants.animate}
           exit={variants.exit}
           transition={variants.transition}
-          className="absolute inset-0 flex items-center justify-center p-6 md:p-12 lg:p-16 overflow-y-auto"
+          className="absolute inset-0 flex items-center justify-center px-6 md:px-12 lg:px-16 py-20 md:py-16 lg:py-20 overflow-y-auto"
         >
           <SlideRenderer slide={currentSlide} />
         </motion.div>
