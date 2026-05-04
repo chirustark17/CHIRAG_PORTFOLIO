@@ -225,27 +225,29 @@ function ProjectsSlide({ slide }) {
 function FeaturedSlide({ slide }) {
   const [imgError, setImgError] = useState(false)
   return (
-    <SlideWrapper slide={slide}>
-      <div className="rounded-3xl overflow-hidden border border-current/15 w-full">
-        {imgError ? (
-          <div className="aspect-video w-full flex items-center justify-center bg-gradient-to-br from-cyan-400/10 to-amber-500/10 font-serif text-2xl text-bone-50/70 p-8 text-center">
-            {slide.title}
-          </div>
-        ) : (
-          <img
-            src={slide.image}
-            alt={`${slide.title} screenshot`}
-            loading="lazy"
-            decoding="async"
-            className="w-full aspect-video object-cover"
-            onError={() => setImgError(true)}
-          />
-        )}
-      </div>
-      <p className="font-sans text-base md:text-lg text-bone-50/80 max-w-2xl mt-6">
-        {slide.caption}
-      </p>
-    </SlideWrapper>
+    <div style={{ transform: 'scale(0.9)', transformOrigin: 'center center', width: '100%' }}>
+      <SlideWrapper slide={slide}>
+        <div className="rounded-3xl overflow-hidden border border-current/15 w-full">
+          {imgError ? (
+            <div className="aspect-video w-full flex items-center justify-center bg-linear-to-br from-cyan-400/10 to-amber-500/10 font-serif text-2xl text-bone-50/70 p-8 text-center">
+              {slide.title}
+            </div>
+          ) : (
+            <img
+              src={slide.image}
+              alt={`${slide.title} screenshot`}
+              loading="lazy"
+              decoding="async"
+              className="w-full aspect-video object-cover"
+              onError={() => setImgError(true)}
+            />
+          )}
+        </div>
+        <p className="font-sans text-base md:text-lg text-bone-50/80 max-w-2xl mt-6">
+          {slide.caption}
+        </p>
+      </SlideWrapper>
+    </div>
   )
 }
 

@@ -45,7 +45,7 @@ function CardVisual({ item, active }) {
       </div>
 
       {/* Content area: bottom 45% */}
-      <div className="flex-1 p-5 flex flex-col gap-2 overflow-hidden">
+      <div className="flex-1 px-5 pb-5 pt-7 flex flex-col gap-2 overflow-hidden">
         <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan-400/85">
           {item.year || 'featured'}
         </span>
