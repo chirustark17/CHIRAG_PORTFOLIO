@@ -160,6 +160,7 @@ function Stage({
   const containerRef = useRef(null)
   const [containerWidth, setContainerWidth] = useState(380)
   const [commitDir, setCommitDir] = useState('left')
+  const didDragRef = useRef(false)
 
   useEffect(() => {
     const el = containerRef.current
@@ -259,10 +260,18 @@ function Stage({
           dragMomentum={false}
           className="absolute inset-0 cursor-grab active:cursor-grabbing"
           style={{ touchAction: 'none', zIndex: 1, rotateY: reducedMotion ? 0 : rotateY }}
-          onDrag={(_, info) => dragX.set(info.offset.x)}
+          onPointerDown={() => { didDragRef.current = false }}
+          onDrag={(_, info) => {
+            dragX.set(info.offset.x)
+            if (Math.abs(info.offset.x) > 5 || Math.abs(info.offset.y) > 5) didDragRef.current = true
+          }}
           onDragStart={() => { dismissHint(); onFirstDrag() }}
           onDragEnd={handleDragEnd}
-          aria-label={`${showcase[activeIndex].title} — drag to see more`}
+          onClick={() => {
+            const href = showcase[activeIndex]?.href
+            if (!didDragRef.current && href) window.open(href, '_blank', 'noopener,noreferrer')
+          }}
+          aria-label={`${showcase[activeIndex].title} — tap to open, drag to explore`}
           role="group"
         >
           <CardVisual item={showcase[activeIndex]} active={true} />

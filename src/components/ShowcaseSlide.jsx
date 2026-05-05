@@ -76,26 +76,47 @@ export function ShowcaseSlide({ slug, title, subtitle, year, stack, image, href,
       onKeyDown={handleKeyDown}
     >
       {/* Image block */}
-      <div className={`aspect-16/10 rounded-3xl overflow-hidden ring-1 bg-current/5 transition-all duration-500 ${
-        isCenter
-          ? 'ring-cyan-400/40 shadow-[0_0_60px_-15px_rgba(34,211,238,0.4)] group-hover:ring-cyan-400/60'
-          : 'ring-current/10'
-      }`}>
-        {imgError ? (
-          <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-cyan-400/20 to-amber-500/20 font-serif text-3xl p-8 text-center">
-            {title}
-          </div>
-        ) : (
-          <img
-            src={image}
-            alt={title}
-            loading="lazy"
-            decoding="async"
-            className={`w-full h-full object-cover transition-transform duration-500 ${isCenter ? 'group-hover:scale-[1.03]' : ''}`}
-            onError={() => setImgError(true)}
-          />
-        )}
-      </div>
+      {isCenter ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`Open ${title} project`}
+          className={`block aspect-16/10 rounded-3xl overflow-hidden ring-1 bg-current/5 transition-all duration-500 ring-cyan-400/40 shadow-[0_0_60px_-15px_rgba(34,211,238,0.4)] group-hover:ring-cyan-400/60`}
+        >
+          {imgError ? (
+            <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-cyan-400/20 to-amber-500/20 font-serif text-3xl p-8 text-center">
+              {title}
+            </div>
+          ) : (
+            <img
+              src={image}
+              alt={title}
+              loading="lazy"
+              decoding="async"
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+              onError={() => setImgError(true)}
+            />
+          )}
+        </a>
+      ) : (
+        <div className={`aspect-16/10 rounded-3xl overflow-hidden ring-1 bg-current/5 transition-all duration-500 ring-current/10`}>
+          {imgError ? (
+            <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-cyan-400/20 to-amber-500/20 font-serif text-3xl p-8 text-center">
+              {title}
+            </div>
+          ) : (
+            <img
+              src={image}
+              alt={title}
+              loading="lazy"
+              decoding="async"
+              className="w-full h-full object-cover transition-transform duration-500"
+              onError={() => setImgError(true)}
+            />
+          )}
+        </div>
+      )}
 
       {/* Text block */}
       <div className="mt-5 px-1">
