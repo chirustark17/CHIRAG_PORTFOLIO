@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import StarkTag from './components/StarkTag'
 import { MotionConfig } from 'framer-motion'
 import Navbar from './components/Navbar'
 import AuroraBackground from './components/AuroraBackground'
@@ -26,8 +27,20 @@ import ReelDeckMobile from './components/mobile/ReelDeckMobile'
 function App() {
   const { showHint, dismissHint } = useReelTrigger()
   const [reelOpen, setReelOpen] = useState(false)
+  const [tagVisible, setTagVisible] = useState(false)
   const launchButtonRef = useRef(null)
   const isMobile = useIsMobile()
+
+  useEffect(() => {
+    const el = document.getElementById('contact')
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => setTagVisible(entry.isIntersecting),
+      { threshold: 0.1 }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   const launchReel = () => {
     dismissHint()
@@ -66,6 +79,7 @@ function App() {
         <Contact />
       </main>
       <Footer />
+      <StarkTag visible={tagVisible} />
       <ScrollToTop />
       <ReelButton ref={launchButtonRef} onLaunch={launchReel} />
       <ReelHint
