@@ -8,16 +8,27 @@ import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion'
 const GRAIN_SRC =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E\")"
 
+// Shimmer border keyframes — injected once via <style> tag
+const SHIMMER_CSS = `
+@keyframes shimmer-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}`
+
 // ─── CardVisual ───────────────────────────────────────────────────────────────
 function CardVisual({ item, active }) {
   const [imageFailed, setImageFailed] = useState(false)
 
-  return (
+  const article = (
     <article
       className={`w-full h-full rounded-3xl overflow-hidden flex flex-col border bg-ink-950 dark:bg-bone-50 ${active ? '' : 'pointer-events-none'}`}
       style={{
-        borderColor: 'rgba(34,211,238,0.18)',
-        boxShadow: '0 24px 60px -20px rgba(0,0,0,0.4)',
+        position: 'relative',
+        zIndex: 1,
+        // Active card: shimmer wrapper provides the border effect; suppress the static border
+        borderColor: active ? 'transparent' : 'rgba(34,211,238,0.18)',
+        // Shadow lives on the wrapper for active cards (overflow:hidden would clip it otherwise)
+        boxShadow: active ? undefined : '0 24px 60px -20px rgba(0,0,0,0.4)',
       }}
     >
       {/* Image area: top 55% */}
@@ -72,6 +83,30 @@ function CardVisual({ item, active }) {
         </div>
       </div>
     </article>
+  )
+
+  // Peek cards (inactive) — plain card, no shimmer
+  if (!active) return article
+
+  // Active card — wrapped in shimmer border
+  return (
+    <div
+      className="relative w-full h-full rounded-3xl overflow-hidden"
+      style={{ padding: '1.5px', boxShadow: '0 24px 60px -20px rgba(0,0,0,0.4)' }}
+    >
+      {/* Oversized rotating div clipped to card shape — forms the traveling shimmer */}
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: '-100%',
+          opacity: 0.5,
+          background: 'conic-gradient(from 0deg, transparent 0%, rgba(34,211,238,1) 10%, transparent 20%)',
+          animation: 'shimmer-spin 3.5s linear infinite',
+        }}
+      />
+      {article}
+    </div>
   )
 }
 
@@ -183,12 +218,11 @@ function Stage({
 
   // ── Derived motion values ─────────────────────────────────────────────────
 
-  // Rubber-band resistance: 1:1 below 120px, sqrt-slowed beyond so heavy drags feel "sticky"
+  // Smooth asymptotic resistance — tanh curve, no piecewise threshold jerk
+  // Near-linear for small drags, gradually caps around ±140px regardless of input
   const resistedX = useTransform(dragX, (v) => {
-    const max = 120
-    if (Math.abs(v) <= max) return v
-    const overshoot = Math.abs(v) - max
-    return Math.sign(v) * (max + Math.sqrt(overshoot) * 8)
+    const max = 100
+    return max * Math.tanh(v / max) * 1.4
   })
 
   // Glow: shifts at 0.3× speed, scales 320→380px and brightens 0.35→0.65 alpha with drag
@@ -405,6 +439,8 @@ export default function SelectedWorkMobile() {
   const goPrev = () => { dismissHint(); setActiveIndex(i => (i - 1 + total) % total) }
 
   return (
+    <>
+    <style>{SHIMMER_CSS}</style>
     <section
       id="selected-work"
       className="section relative px-5 pt-12 pb-14 flex flex-col gap-5"
@@ -472,5 +508,6 @@ export default function SelectedWorkMobile() {
         </div>
       )}
     </section>
+    </>
   )
 }
