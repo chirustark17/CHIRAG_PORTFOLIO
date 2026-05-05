@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion'
+import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import showcase from '../../data/showcase'
 import { SectionHeading } from '../SectionHeading'
 import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion'
@@ -14,6 +14,22 @@ const SHIMMER_CSS = `
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }`
+
+// Fan layout constants
+const CARD_COUNT = 4
+const FAN_SPREAD = 38        // total degrees spread across all cards
+const CARD_OFFSET_Y = 12     // px — cards further from center sit slightly lower
+const CARD_SCALE_ACTIVE = 1.0
+const CARD_SCALE_ADJACENT = 0.88
+const CARD_SCALE_BACK = 0.78
+const FAN_STEP = FAN_SPREAD / (CARD_COUNT - 1)  // ~12.67 degrees per position
+
+// Normalize raw relative position to [-floor(n/2), floor(n/2)] for circular wrapping
+function normalizeRelPos(raw) {
+  let r = ((raw % CARD_COUNT) + CARD_COUNT) % CARD_COUNT
+  if (r > CARD_COUNT / 2) r -= CARD_COUNT
+  return r
+}
 
 // ─── CardVisual ───────────────────────────────────────────────────────────────
 function CardVisual({ item, active }) {
@@ -112,30 +128,35 @@ function CardVisual({ item, active }) {
   )
 }
 
-// ─── PeekCard ─────────────────────────────────────────────────────────────────
-function PeekCard({ item, side, dragX, containerWidth }) {
-  const x = useTransform(dragX, (dx) => {
-    const base = side === 'right' ? containerWidth : -containerWidth
-    return base + dx * 0.3
-  })
-  const opacity = useTransform(dragX, (dx) => {
-    if (side === 'right') return Math.min(1, Math.max(0, -dx / 80))
-    return Math.min(1, Math.max(0, dx / 80))
-  })
-  const scale = useTransform(dragX, (dx) => {
-    const progress = side === 'right'
-      ? Math.min(1, Math.max(0, -dx / 60))
-      : Math.min(1, Math.max(0, dx / 60))
-    return 0.85 + progress * 0.1
-  })
+// ─── FanCard ──────────────────────────────────────────────────────────────────
+function FanCard({ item, index, activeIndex, fanRotation, onTap, reducedMotion }) {
+  const relPos = normalizeRelPos(index - activeIndex)
+  const absPos = Math.abs(relPos)
+  const isActive = absPos === 0
+  const baseAngle = relPos * FAN_STEP
+  // Derived rotation: base fan angle + live fanRotation offset
+  const rot = useTransform(fanRotation, v => baseAngle + v)
+  const scale = isActive ? CARD_SCALE_ACTIVE : absPos === 1 ? CARD_SCALE_ADJACENT : CARD_SCALE_BACK
+  // Cards at abs >= 2 are hidden behind — opacity 0 avoids visible teleport on activeIndex change
+  const opacity = absPos <= 1 ? 1 : 0
+  const zIdx = CARD_COUNT - absPos
+  const ty = absPos * CARD_OFFSET_Y
 
   return (
     <motion.div
-      className="absolute inset-0 pointer-events-none"
-      style={{ x, opacity, scale, zIndex: 0 }}
-      aria-hidden
+      className="absolute inset-0"
+      style={{
+        rotate: reducedMotion ? baseAngle : rot,
+        translateY: ty,
+        scale,
+        opacity,
+        zIndex: zIdx,
+        transformOrigin: 'center 160%',
+        cursor: 'pointer',
+      }}
+      onClick={onTap}
     >
-      <CardVisual item={item} active={false} />
+      <CardVisual item={item} active={isActive} />
     </motion.div>
   )
 }
@@ -195,50 +216,47 @@ function PipIndicator({ total, active }) {
 
 // ─── Stage ───────────────────────────────────────────────────────────────────
 function Stage({
-  showcase, activeIndex, dragX, onNext, onPrev,
+  showcase, activeIndex, setActiveIndex, fanRotation,
   dismissHint, reducedMotion, hintVisible, hintCycleCount,
   onFirstDrag,
 }) {
-  const total = showcase.length
-  const containerRef = useRef(null)
-  const [containerWidth, setContainerWidth] = useState(380)
-  const [commitDir, setCommitDir] = useState('left')
-
-  // Drag state — refs to avoid stale closures and unnecessary re-renders
   const didDragRef = useRef(false)
   const isDraggingRef = useRef(false)
-  const pointerStartRef = useRef(null)       // { x, y } at pointerdown
-  const velocityHistoryRef = useRef([])      // [{ x, t }] sliding 100ms window
+  const pointerStartRef = useRef(null)
+  const velocityHistoryRef = useRef([])
 
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const ro = new ResizeObserver(([entry]) => setContainerWidth(entry.contentRect.width))
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
+  // Glow brightens/expands as fan rotates away from rest
+  const glowOpacity = useTransform(fanRotation, v => 0.54 + Math.min(Math.abs(v) / 20, 1) * 0.46)
+  const glowScale = useTransform(fanRotation, v => 0.842 + Math.min(Math.abs(v) / 20, 1) * 0.158)
 
-  // ── Derived motion values ─────────────────────────────────────────────────
+  // Snap the fan to the nearest card stop and update activeIndex on completion
+  function snapToNearest() {
+    const fr = fanRotation.get()
+    const snapOffset = Math.round(fr / FAN_STEP)
+    const nearestStop = snapOffset * FAN_STEP
+    const newActive = ((activeIndex - snapOffset) % CARD_COUNT + CARD_COUNT) % CARD_COUNT
+    animate(fanRotation, nearestStop, {
+      type: 'spring', stiffness: 300, damping: 28,
+      onComplete: () => { setActiveIndex(newActive); fanRotation.set(0) },
+    })
+  }
 
-  // Smooth asymptotic resistance — tanh curve, no piecewise threshold jerk
-  // Near-linear for small drags, gradually caps around ±140px regardless of input
-  const resistedX = useTransform(dragX, (v) => {
-    const max = 100
-    return max * Math.tanh(v / max) * 1.4
-  })
-
-  // Glow: shifts at 0.3× speed, scales 320→380px and brightens 0.35→0.65 alpha with drag
-  const glowX = useTransform(dragX, (dx) => dx * 0.3)
-  const glowScale = useTransform(dragX, (v) => 0.842 + Math.min(Math.abs(v) / 60, 1) * 0.158)
-  const glowOpacity = useTransform(dragX, (v) => 0.54 + Math.min(Math.abs(v) / 60, 1) * 0.46)
-
-  // Card: subtle scale-down (1→0.96) during drag — magnetic pull-in feel
-  const cardScale = useTransform(dragX, (v) => 1 - Math.min(Math.abs(v) / 120, 1) * 0.04)
-
-  const SWIPE_DISTANCE = 60
-  const SWIPE_VELOCITY = 400
-
-  // ── Pointer handlers ──────────────────────────────────────────────────────
+  // Tap on any card: bring non-active cards to front, open link for active card
+  function handleCardTap(i) {
+    if (didDragRef.current) return
+    const r = normalizeRelPos(i - activeIndex)
+    if (r === 0) {
+      const href = showcase[i]?.href
+      if (href) window.open(href, '_blank', 'noopener,noreferrer')
+      return
+    }
+    // Rotate fan so card i arrives at angle 0 (front)
+    const target = -r * FAN_STEP
+    animate(fanRotation, target, {
+      type: 'spring', stiffness: 400, damping: 30,
+      onComplete: () => { setActiveIndex(i); fanRotation.set(0) },
+    })
+  }
 
   function handlePointerDown(e) {
     didDragRef.current = false
@@ -252,14 +270,12 @@ function Stage({
     if (!pointerStartRef.current) return
     const dx = e.clientX - pointerStartRef.current.x
     const dy = e.clientY - pointerStartRef.current.y
-
     if (!isDraggingRef.current) {
-      // Dead zone: ignore micro-movements
       if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return
-      // Cancel horizontal tracking if gesture is primarily vertical
+      // Cancel if gesture is primarily vertical
       if (Math.abs(dy) > Math.abs(dx) * 1.5) {
         pointerStartRef.current = null
-        dragX.set(0)
+        fanRotation.set(0)
         return
       }
       isDraggingRef.current = true
@@ -267,81 +283,50 @@ function Stage({
       dismissHint()
       onFirstDrag()
     }
-
-    dragX.set(dx)
-
-    // Maintain a 100ms sliding window for velocity estimation
+    // Map horizontal drag to rotation: ~0.3 deg per px
+    fanRotation.set(dx * 0.3)
     const now = Date.now()
     velocityHistoryRef.current.push({ x: e.clientX, t: now })
     velocityHistoryRef.current = velocityHistoryRef.current.filter(p => now - p.t < 100)
   }
 
-  function handlePointerUp(e) {
+  function handlePointerUp() {
     if (!pointerStartRef.current) return
     pointerStartRef.current = null
-
-    if (!isDraggingRef.current) {
-      isDraggingRef.current = false
-      return  // pure tap — onClick handles link opening
-    }
+    if (!isDraggingRef.current) { isDraggingRef.current = false; return }
     isDraggingRef.current = false
-
-    const dx = dragX.get()
-    const history = velocityHistoryRef.current
-    const velocity = history.length >= 2
-      ? (history[history.length - 1].x - history[0].x) /
-        Math.max(1, history[history.length - 1].t - history[0].t) * 1000
-      : 0
     velocityHistoryRef.current = []
-
-    const isCommit = Math.abs(dx) > SWIPE_DISTANCE || Math.abs(velocity) > SWIPE_VELOCITY
-
-    if (isCommit) {
-      const goLeft = dx < 0 || velocity < -SWIPE_VELOCITY
-      dragX.set(0)
-      if (goLeft) { setCommitDir('left'); onNext() }
-      else { setCommitDir('right'); onPrev() }
-    } else {
-      // Bounce: hard spring gives visible overshoot
-      animate(dragX, 0, { type: 'spring', stiffness: 600, damping: 12, mass: 0.8 })
-    }
+    snapToNearest()
   }
-
-  // ── Slide variants ────────────────────────────────────────────────────────
-  const slideVariants = {
-    enter: (dir) => ({ x: dir === 'left' ? '100%' : '-100%', opacity: 0 }),
-    center: { x: 0, opacity: 1, transition: { type: 'spring', stiffness: 280, damping: 30 } },
-    exit: (dir) => ({ x: dir === 'left' ? '-100%' : '100%', opacity: 0, transition: { duration: 0.22, ease: 'easeIn' } }),
-  }
-
-  const prevIdx = (activeIndex - 1 + total) % total
-  const nextIdx = (activeIndex + 1) % total
 
   return (
     <div
-      ref={containerRef}
-      className="relative w-full mx-auto overflow-hidden"
+      className="relative w-full mx-auto"
       style={{
         height: 'min(65vh, 500px)',
         maxWidth: '380px',
         touchAction: 'pan-y',
-        perspective: '600px',
+        perspective: '800px',
       }}
-      aria-label="Featured projects rotating carousel"
+      onPointerDown={reducedMotion ? undefined : handlePointerDown}
+      onPointerMove={reducedMotion ? undefined : handlePointerMove}
+      onPointerUp={reducedMotion ? undefined : handlePointerUp}
+      onPointerCancel={reducedMotion ? undefined : handlePointerUp}
+      aria-label="Featured projects fan deck"
       aria-roledescription="carousel"
       tabIndex={0}
       onKeyDown={(e) => {
-        if (e.key === 'ArrowLeft') { e.preventDefault(); dragX.set(0); setCommitDir('right'); onPrev() }
-        if (e.key === 'ArrowRight') { e.preventDefault(); dragX.set(0); setCommitDir('left'); onNext() }
+        if (reducedMotion) return
+        if (e.key === 'ArrowLeft') { e.preventDefault(); handleCardTap((activeIndex + 1) % CARD_COUNT) }
+        if (e.key === 'ArrowRight') { e.preventDefault(); handleCardTap((activeIndex - 1 + CARD_COUNT) % CARD_COUNT) }
       }}
     >
-      {/* Ambient cyan glow — brightens and pulses outward with drag magnitude */}
+      {/* Ambient cyan glow — brightens with rotation magnitude */}
       {!reducedMotion && (
         <motion.div
           aria-hidden
           className="absolute pointer-events-none rounded-full"
           style={{
-            x: glowX,
             scale: glowScale,
             opacity: glowOpacity,
             width: 380,
@@ -355,50 +340,18 @@ function Stage({
         />
       )}
 
-      {/* Peek cards — scale up from 0.85→0.95 as user drags toward them */}
-      {!reducedMotion && (
-        <>
-          <PeekCard item={showcase[prevIdx]} side="left" dragX={dragX} containerWidth={containerWidth} />
-          <PeekCard item={showcase[nextIdx]} side="right" dragX={dragX} containerWidth={containerWidth} />
-        </>
-      )}
-
-      {/* Center card:
-          Outer motion.div — AnimatePresence slide-in/out (x controlled by variants)
-          Inner motion.div — drag position + scale feedback (x = resistedX) */}
-      <AnimatePresence initial={false} custom={commitDir}>
-        <motion.div
-          key={activeIndex}
-          custom={commitDir}
-          variants={reducedMotion ? {} : slideVariants}
-          initial={reducedMotion ? false : 'enter'}
-          animate={reducedMotion ? {} : 'center'}
-          exit={reducedMotion ? {} : 'exit'}
-          className="absolute inset-0"
-          style={{ zIndex: 1 }}
-        >
-          <motion.div
-            className="absolute inset-0 cursor-grab active:cursor-grabbing"
-            style={{
-              touchAction: reducedMotion ? 'auto' : 'none',
-              x: reducedMotion ? 0 : resistedX,
-              scale: reducedMotion ? 1 : cardScale,
-            }}
-            onPointerDown={reducedMotion ? undefined : handlePointerDown}
-            onPointerMove={reducedMotion ? undefined : handlePointerMove}
-            onPointerUp={reducedMotion ? undefined : handlePointerUp}
-            onPointerCancel={reducedMotion ? undefined : handlePointerUp}
-            onClick={() => {
-              const href = showcase[activeIndex]?.href
-              if (!didDragRef.current && href) window.open(href, '_blank', 'noopener,noreferrer')
-            }}
-            aria-label={`${showcase[activeIndex].title} — tap to open, drag to explore`}
-            role="group"
-          >
-            <CardVisual item={showcase[activeIndex]} active={true} />
-          </motion.div>
-        </motion.div>
-      </AnimatePresence>
+      {/* All 4 cards rendered simultaneously, each at their fan position */}
+      {showcase.map((item, i) => (
+        <FanCard
+          key={i}
+          item={item}
+          index={i}
+          activeIndex={activeIndex}
+          fanRotation={fanRotation}
+          onTap={() => handleCardTap(i)}
+          reducedMotion={reducedMotion}
+        />
+      ))}
 
       {hintVisible && !reducedMotion && <SwipeHint cycle={hintCycleCount} />}
     </div>
@@ -412,7 +365,7 @@ export default function SelectedWorkMobile() {
   const [hintCycleCount, setHintCycleCount] = useState(0)
   const [hasDragged, setHasDragged] = useState(false)
   const reducedMotion = usePrefersReducedMotion()
-  const dragX = useMotionValue(0)
+  const fanRotation = useMotionValue(0)
   const total = showcase.length
 
   useEffect(() => {
@@ -436,9 +389,6 @@ export default function SelectedWorkMobile() {
   }
 
   const handleFirstDrag = () => setHasDragged(true)
-
-  const goNext = () => { dismissHint(); setActiveIndex(i => (i + 1) % total) }
-  const goPrev = () => { dismissHint(); setActiveIndex(i => (i - 1 + total) % total) }
 
   return (
     <>
@@ -466,9 +416,8 @@ export default function SelectedWorkMobile() {
       <Stage
         showcase={showcase}
         activeIndex={activeIndex}
-        dragX={dragX}
-        onNext={goNext}
-        onPrev={goPrev}
+        setActiveIndex={setActiveIndex}
+        fanRotation={fanRotation}
         dismissHint={dismissHint}
         reducedMotion={reducedMotion}
         hintVisible={hintVisible}
@@ -485,14 +434,14 @@ export default function SelectedWorkMobile() {
           style={{ fontSize: 11, opacity: 0.4, marginTop: -8 }}
           aria-hidden
         >
-          drag to explore
+          drag to spin
         </p>
       )}
 
       {reducedMotion && (
         <div className="flex justify-center gap-3 mt-2">
           <button
-            onClick={goPrev}
+            onClick={() => setActiveIndex(i => (i - 1 + total) % total)}
             className="font-mono text-xs uppercase tracking-wider px-4 py-2
                        rounded-full border border-current/30
                        hover:border-cyan-400 hover:text-cyan-400 transition"
@@ -500,7 +449,7 @@ export default function SelectedWorkMobile() {
             Previous
           </button>
           <button
-            onClick={goNext}
+            onClick={() => setActiveIndex(i => (i + 1) % total)}
             className="font-mono text-xs uppercase tracking-wider px-4 py-2
                        rounded-full border border-current/30
                        hover:border-cyan-400 hover:text-cyan-400 transition"
