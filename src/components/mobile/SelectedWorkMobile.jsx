@@ -173,8 +173,8 @@ function Stage({
   // Ambient glow follows drag at 0.3× speed
   const glowX = useTransform(dragX, (dx) => dx * 0.3)
 
-  // Card 3-D tilt: drag left → rotateY(3deg), drag right → rotateY(-3deg)
-  const rotateY = useTransform(dragX, [-80, 0, 80], [3, 0, -3])
+  // Card 3-D tilt: tighter input range + larger angle so tilt kicks in fast
+  const rotateY = useTransform(dragX, [-60, 0, 60], [8, 0, -8])
 
   const SWIPE_DISTANCE = 60
   const SWIPE_VELOCITY = 400
@@ -209,7 +209,7 @@ function Stage({
         height: 'min(65vh, 500px)',
         maxWidth: '380px',
         touchAction: 'pan-y',
-        perspective: '800px',
+        perspective: '600px',
       }}
       aria-label="Featured projects rotating carousel"
       aria-roledescription="carousel"
@@ -226,12 +226,12 @@ function Stage({
           className="absolute pointer-events-none rounded-full"
           style={{
             x: glowX,
-            width: 280,
-            height: 280,
-            top: 'calc(50% - 140px)',
-            left: 'calc(50% - 140px)',
-            background: 'radial-gradient(circle, rgba(34,211,238,0.15) 0%, transparent 70%)',
-            filter: 'blur(20px)',
+            width: 420,
+            height: 420,
+            top: 'calc(50% - 210px)',
+            left: 'calc(50% - 210px)',
+            background: 'radial-gradient(circle, rgba(34,211,238,0.35) 0%, rgba(34,211,238,0.08) 45%, transparent 70%)',
+            filter: 'blur(24px)',
             zIndex: 0,
           }}
         />
