@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion'
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion'
 import showcase from '../../data/showcase'
 import { SectionHeading } from '../SectionHeading'
 import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion'
@@ -8,7 +8,7 @@ import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion'
 const GRAIN_SRC =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E\")"
 
-// ─── CardVisual ────────────────────────────────────────────────────────────────
+// ─── CardVisual ───────────────────────────────────────────────────────────────
 function CardVisual({ item, active }) {
   const [imageFailed, setImageFailed] = useState(false)
 
@@ -75,7 +75,7 @@ function CardVisual({ item, active }) {
   )
 }
 
-// ─── PeekCard ──────────────────────────────────────────────────────────────────
+// ─── PeekCard ─────────────────────────────────────────────────────────────────
 function PeekCard({ item, side, dragX, containerWidth }) {
   const x = useTransform(dragX, (dx) => {
     const base = side === 'right' ? containerWidth : -containerWidth
@@ -85,11 +85,17 @@ function PeekCard({ item, side, dragX, containerWidth }) {
     if (side === 'right') return Math.min(1, Math.max(0, -dx / 80))
     return Math.min(1, Math.max(0, dx / 80))
   })
+  const scale = useTransform(dragX, (dx) => {
+    const progress = side === 'right'
+      ? Math.min(1, Math.max(0, -dx / 60))
+      : Math.min(1, Math.max(0, dx / 60))
+    return 0.85 + progress * 0.1
+  })
 
   return (
     <motion.div
       className="absolute inset-0 pointer-events-none"
-      style={{ x, opacity, zIndex: 0 }}
+      style={{ x, opacity, scale, zIndex: 0 }}
       aria-hidden
     >
       <CardVisual item={item} active={false} />
@@ -97,7 +103,7 @@ function PeekCard({ item, side, dragX, containerWidth }) {
   )
 }
 
-// ─── SwipeHint ─────────────────────────────────────────────────────────────────
+// ─── SwipeHint ────────────────────────────────────────────────────────────────
 function SwipeHint({ cycle }) {
   return (
     <motion.div
@@ -123,7 +129,7 @@ function SwipeHint({ cycle }) {
   )
 }
 
-// ─── PipIndicator ──────────────────────────────────────────────────────────────
+// ─── PipIndicator ─────────────────────────────────────────────────────────────
 function PipIndicator({ total, active }) {
   return (
     <div
@@ -150,7 +156,7 @@ function PipIndicator({ total, active }) {
   )
 }
 
-// ─── Stage ────────────────────────────────────────────────────────────────────
+// ─── Stage ───────────────────────────────────────────────────────────────────
 function Stage({
   showcase, activeIndex, dragX, onNext, onPrev,
   dismissHint, reducedMotion, hintVisible, hintCycleCount,
@@ -160,7 +166,12 @@ function Stage({
   const containerRef = useRef(null)
   const [containerWidth, setContainerWidth] = useState(380)
   const [commitDir, setCommitDir] = useState('left')
+
+  // Drag state — refs to avoid stale closures and unnecessary re-renders
   const didDragRef = useRef(false)
+  const isDraggingRef = useRef(false)
+  const pointerStartRef = useRef(null)       // { x, y } at pointerdown
+  const velocityHistoryRef = useRef([])      // [{ x, t }] sliding 100ms window
 
   useEffect(() => {
     const el = containerRef.current
@@ -170,28 +181,97 @@ function Stage({
     return () => ro.disconnect()
   }, [])
 
-  // Ambient glow follows drag at 0.3× speed
-  const glowX = useTransform(dragX, (dx) => dx * 0.3)
+  // ── Derived motion values ─────────────────────────────────────────────────
 
-  // Card 3-D tilt: tighter input range + larger angle so tilt kicks in fast
-  const rotateY = useTransform(dragX, [-60, 0, 60], [8, 0, -8])
+  // Rubber-band resistance: 1:1 below 120px, sqrt-slowed beyond so heavy drags feel "sticky"
+  const resistedX = useTransform(dragX, (v) => {
+    const max = 120
+    if (Math.abs(v) <= max) return v
+    const overshoot = Math.abs(v) - max
+    return Math.sign(v) * (max + Math.sqrt(overshoot) * 8)
+  })
+
+  // Glow: shifts at 0.3× speed, scales 320→380px and brightens 0.35→0.65 alpha with drag
+  const glowX = useTransform(dragX, (dx) => dx * 0.3)
+  const glowScale = useTransform(dragX, (v) => 0.842 + Math.min(Math.abs(v) / 60, 1) * 0.158)
+  const glowOpacity = useTransform(dragX, (v) => 0.54 + Math.min(Math.abs(v) / 60, 1) * 0.46)
+
+  // Card: subtle scale-down (1→0.96) during drag — magnetic pull-in feel
+  const cardScale = useTransform(dragX, (v) => 1 - Math.min(Math.abs(v) / 120, 1) * 0.04)
 
   const SWIPE_DISTANCE = 60
   const SWIPE_VELOCITY = 400
 
-  const handleDragEnd = (_, info) => {
-    dismissHint()
-    dragX.set(0)
-    const dx = info.offset.x
-    const vx = info.velocity.x
-    const isHorizontal = Math.abs(dx) > Math.abs(info.offset.y) * 1.2
-    const isCommit = isHorizontal && (Math.abs(dx) > SWIPE_DISTANCE || Math.abs(vx) > SWIPE_VELOCITY)
+  // ── Pointer handlers ──────────────────────────────────────────────────────
+
+  function handlePointerDown(e) {
+    didDragRef.current = false
+    isDraggingRef.current = false
+    velocityHistoryRef.current = []
+    pointerStartRef.current = { x: e.clientX, y: e.clientY }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  function handlePointerMove(e) {
+    if (!pointerStartRef.current) return
+    const dx = e.clientX - pointerStartRef.current.x
+    const dy = e.clientY - pointerStartRef.current.y
+
+    if (!isDraggingRef.current) {
+      // Dead zone: ignore micro-movements
+      if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return
+      // Cancel horizontal tracking if gesture is primarily vertical
+      if (Math.abs(dy) > Math.abs(dx) * 1.5) {
+        pointerStartRef.current = null
+        dragX.set(0)
+        return
+      }
+      isDraggingRef.current = true
+      didDragRef.current = true
+      dismissHint()
+      onFirstDrag()
+    }
+
+    dragX.set(dx)
+
+    // Maintain a 100ms sliding window for velocity estimation
+    const now = Date.now()
+    velocityHistoryRef.current.push({ x: e.clientX, t: now })
+    velocityHistoryRef.current = velocityHistoryRef.current.filter(p => now - p.t < 100)
+  }
+
+  function handlePointerUp(e) {
+    if (!pointerStartRef.current) return
+    pointerStartRef.current = null
+
+    if (!isDraggingRef.current) {
+      isDraggingRef.current = false
+      return  // pure tap — onClick handles link opening
+    }
+    isDraggingRef.current = false
+
+    const dx = dragX.get()
+    const history = velocityHistoryRef.current
+    const velocity = history.length >= 2
+      ? (history[history.length - 1].x - history[0].x) /
+        Math.max(1, history[history.length - 1].t - history[0].t) * 1000
+      : 0
+    velocityHistoryRef.current = []
+
+    const isCommit = Math.abs(dx) > SWIPE_DISTANCE || Math.abs(velocity) > SWIPE_VELOCITY
+
     if (isCommit) {
-      if (dx < 0) { setCommitDir('left'); onNext() }
+      const goLeft = dx < 0 || velocity < -SWIPE_VELOCITY
+      dragX.set(0)
+      if (goLeft) { setCommitDir('left'); onNext() }
       else { setCommitDir('right'); onPrev() }
+    } else {
+      // Bounce: hard spring gives visible overshoot
+      animate(dragX, 0, { type: 'spring', stiffness: 600, damping: 12, mass: 0.8 })
     }
   }
 
+  // ── Slide variants ────────────────────────────────────────────────────────
   const slideVariants = {
     enter: (dir) => ({ x: dir === 'left' ? '100%' : '-100%', opacity: 0 }),
     center: { x: 0, opacity: 1, transition: { type: 'spring', stiffness: 280, damping: 30 } },
@@ -215,29 +295,31 @@ function Stage({
       aria-roledescription="carousel"
       tabIndex={0}
       onKeyDown={(e) => {
-        if (e.key === 'ArrowLeft') { e.preventDefault(); setCommitDir('right'); onPrev() }
-        if (e.key === 'ArrowRight') { e.preventDefault(); setCommitDir('left'); onNext() }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); dragX.set(0); setCommitDir('right'); onPrev() }
+        if (e.key === 'ArrowRight') { e.preventDefault(); dragX.set(0); setCommitDir('left'); onNext() }
       }}
     >
-      {/* Ambient cyan glow behind the active card */}
+      {/* Ambient cyan glow — brightens and pulses outward with drag magnitude */}
       {!reducedMotion && (
         <motion.div
           aria-hidden
           className="absolute pointer-events-none rounded-full"
           style={{
             x: glowX,
-            width: 420,
-            height: 420,
-            top: 'calc(50% - 210px)',
-            left: 'calc(50% - 210px)',
-            background: 'radial-gradient(circle, rgba(34,211,238,0.35) 0%, rgba(34,211,238,0.08) 45%, transparent 70%)',
+            scale: glowScale,
+            opacity: glowOpacity,
+            width: 380,
+            height: 380,
+            top: 'calc(50% - 190px)',
+            left: 'calc(50% - 190px)',
+            background: 'radial-gradient(circle, rgba(34,211,238,0.65) 0%, rgba(34,211,238,0.15) 45%, transparent 70%)',
             filter: 'blur(24px)',
             zIndex: 0,
           }}
         />
       )}
 
-      {/* Peek cards (hidden off-stage, revealed during drag) */}
+      {/* Peek cards — scale up from 0.85→0.95 as user drags toward them */}
       {!reducedMotion && (
         <>
           <PeekCard item={showcase[prevIdx]} side="left" dragX={dragX} containerWidth={containerWidth} />
@@ -245,7 +327,9 @@ function Stage({
         </>
       )}
 
-      {/* Center card with enter/exit animation + rotateY tilt */}
+      {/* Center card:
+          Outer motion.div — AnimatePresence slide-in/out (x controlled by variants)
+          Inner motion.div — drag position + scale feedback (x = resistedX) */}
       <AnimatePresence initial={false} custom={commitDir}>
         <motion.div
           key={activeIndex}
@@ -254,27 +338,29 @@ function Stage({
           initial={reducedMotion ? false : 'enter'}
           animate={reducedMotion ? {} : 'center'}
           exit={reducedMotion ? {} : 'exit'}
-          drag={reducedMotion ? false : 'x'}
-          dragConstraints={{ left: 0, right: 0 }}
-          dragElastic={0.18}
-          dragMomentum={false}
-          className="absolute inset-0 cursor-grab active:cursor-grabbing"
-          style={{ touchAction: 'none', zIndex: 1, rotateY: reducedMotion ? 0 : rotateY }}
-          onPointerDown={() => { didDragRef.current = false }}
-          onDrag={(_, info) => {
-            dragX.set(info.offset.x)
-            if (Math.abs(info.offset.x) > 5 || Math.abs(info.offset.y) > 5) didDragRef.current = true
-          }}
-          onDragStart={() => { dismissHint(); onFirstDrag() }}
-          onDragEnd={handleDragEnd}
-          onClick={() => {
-            const href = showcase[activeIndex]?.href
-            if (!didDragRef.current && href) window.open(href, '_blank', 'noopener,noreferrer')
-          }}
-          aria-label={`${showcase[activeIndex].title} — tap to open, drag to explore`}
-          role="group"
+          className="absolute inset-0"
+          style={{ zIndex: 1 }}
         >
-          <CardVisual item={showcase[activeIndex]} active={true} />
+          <motion.div
+            className="absolute inset-0 cursor-grab active:cursor-grabbing"
+            style={{
+              touchAction: reducedMotion ? 'auto' : 'none',
+              x: reducedMotion ? 0 : resistedX,
+              scale: reducedMotion ? 1 : cardScale,
+            }}
+            onPointerDown={reducedMotion ? undefined : handlePointerDown}
+            onPointerMove={reducedMotion ? undefined : handlePointerMove}
+            onPointerUp={reducedMotion ? undefined : handlePointerUp}
+            onPointerCancel={reducedMotion ? undefined : handlePointerUp}
+            onClick={() => {
+              const href = showcase[activeIndex]?.href
+              if (!didDragRef.current && href) window.open(href, '_blank', 'noopener,noreferrer')
+            }}
+            aria-label={`${showcase[activeIndex].title} — tap to open, drag to explore`}
+            role="group"
+          >
+            <CardVisual item={showcase[activeIndex]} active={true} />
+          </motion.div>
         </motion.div>
       </AnimatePresence>
 
@@ -283,7 +369,7 @@ function Stage({
   )
 }
 
-// ─── SelectedWorkMobile ────────────────────────────────────────────────────────
+// ─── SelectedWorkMobile ───────────────────────────────────────────────────────
 export default function SelectedWorkMobile() {
   const [activeIndex, setActiveIndex] = useState(0)
   const [hintVisible, setHintVisible] = useState(false)
