@@ -92,7 +92,7 @@ function CardVisual({ item, active }) {
   return (
     <div
       className="relative w-full h-full rounded-3xl overflow-hidden"
-      style={{ padding: '1.5px', boxShadow: '0 24px 60px -20px rgba(0,0,0,0.4)' }}
+      style={{ padding: '3px', boxShadow: '0 24px 60px -20px rgba(0,0,0,0.4)' }}
     >
       {/* Oversized rotating div clipped to card shape — forms the traveling shimmer */}
       <div
@@ -100,8 +100,8 @@ function CardVisual({ item, active }) {
         style={{
           position: 'absolute',
           inset: '-100%',
-          opacity: 0.5,
-          background: 'conic-gradient(from 0deg, transparent 0%, rgba(34,211,238,1) 10%, transparent 20%)',
+          opacity: 0.75,
+          background: 'conic-gradient(from 0deg, transparent 0deg, rgba(34,211,238,0.9) 40deg, rgba(139,92,246,0.9) 80deg, rgba(34,211,238,0.6) 120deg, transparent 160deg, transparent 360deg)',
           animation: 'shimmer-spin 3.5s linear infinite',
         }}
       />
