@@ -29,6 +29,8 @@ function CardVisual({ item, active }) {
         borderColor: active ? 'transparent' : 'rgba(34,211,238,0.18)',
         // Shadow lives on the wrapper for active cards (overflow:hidden would clip it otherwise)
         boxShadow: active ? undefined : '0 24px 60px -20px rgba(0,0,0,0.4)',
+        // Tighten inner radius so corners look snug against the 6px shimmer gap
+        borderRadius: active ? 'calc(1.5rem - 6px)' : undefined,
       }}
     >
       {/* Image area: top 55% */}
@@ -92,7 +94,7 @@ function CardVisual({ item, active }) {
   return (
     <div
       className="relative w-full h-full rounded-3xl overflow-hidden"
-      style={{ padding: '3px', boxShadow: '0 24px 60px -20px rgba(0,0,0,0.4)' }}
+      style={{ padding: '6px', boxShadow: '0 24px 60px -20px rgba(0,0,0,0.4)' }}
     >
       {/* Oversized rotating div clipped to card shape — forms the traveling shimmer */}
       <div
@@ -101,7 +103,7 @@ function CardVisual({ item, active }) {
           position: 'absolute',
           inset: '-100%',
           opacity: 0.75,
-          background: 'conic-gradient(from 0deg, transparent 0deg, rgba(34,211,238,0.9) 40deg, rgba(139,92,246,0.9) 80deg, rgba(34,211,238,0.6) 120deg, transparent 160deg, transparent 360deg)',
+          background: 'conic-gradient(from 0deg, transparent 0deg, rgba(34,211,238,0.9) 40deg, rgba(139,92,246,0.9) 80deg, rgba(34,211,238,0.6) 120deg, transparent 200deg, transparent 360deg)',
           animation: 'shimmer-spin 3.5s linear infinite',
         }}
       />
