@@ -33,7 +33,7 @@ function App() {
   const contactRef = useRef(null)
   const footerRef = useRef(null)
   const [contactInView, setContactInView] = useState(false)
-  const [footerInView, setFooterInView] = useState(false)
+  const [footerNearTop, setFooterNearTop] = useState(false)
 
   const launchReel = () => {
     dismissHint()
@@ -48,7 +48,7 @@ function App() {
     } catch {}
   }, [])
 
-  // StarkTag visibility: show when Contact is in view, hide when Footer enters
+  // StarkTag mode: floating while Contact is in view, parked when footer nears top
   useEffect(() => {
     const contactEl = contactRef.current
     const footerEl = footerRef.current
@@ -58,15 +58,18 @@ function App() {
       ([entry]) => setContactInView(entry.isIntersecting),
       { threshold: 0.15 }
     )
+    // Expand root by 80px at bottom so this fires before footer fully enters viewport
     const footerObs = new IntersectionObserver(
-      ([entry]) => setFooterInView(entry.isIntersecting),
-      { threshold: 0.05 }
+      ([entry]) => setFooterNearTop(entry.isIntersecting),
+      { rootMargin: '0px 0px 80px 0px', threshold: 0 }
     )
 
     contactObs.observe(contactEl)
     footerObs.observe(footerEl)
     return () => { contactObs.disconnect(); footerObs.disconnect() }
   }, [])
+
+  const starkTagMode = !contactInView ? 'hidden' : footerNearTop ? 'parked' : 'floating'
 
   return (
     <MotionConfig reducedMotion="user">
@@ -91,9 +94,9 @@ function App() {
         {isMobile ? <SelectedWorkMobile /> : <SelectedWork />}
         <div ref={contactRef}><Contact /></div>
       </main>
-      <Footer ref={footerRef} />
+      <Footer ref={footerRef} starkTagMode={starkTagMode} />
       <ScrollToTop />
-      <StarkTag visible={contactInView && !footerInView} />
+      <StarkTag mode={starkTagMode} />
       <ReelButton ref={launchButtonRef} onLaunch={launchReel} />
       <ReelHint
         visible={showHint && !reelOpen}
