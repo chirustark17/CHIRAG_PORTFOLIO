@@ -143,7 +143,7 @@ function SlotCard({ item, slotName, isCenter, onTap, reducedMotion }) {
       className="absolute inset-0 cursor-pointer"
       style={{ zIndex: SLOT_Z[slotName] }}
       animate={target}
-      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+      transition={{ type: 'spring', stiffness: 260, damping: 32, mass: 1.1 }}
       onClick={onTap}
     >
       <CardVisual item={item} active={isCenter} />
@@ -273,7 +273,8 @@ function Stage({
     if      (velocityX < -300 || dx < -50) advance =  1
     else if (velocityX >  300 || dx >  50) advance = -1
     if (advance !== 0) {
-      setActiveIndex(i => (i + advance + CARD_COUNT) % CARD_COUNT)
+      const next = (activeIndex + advance + CARD_COUNT) % CARD_COUNT
+      requestAnimationFrame(() => setActiveIndex(next))
     }
   }
 
