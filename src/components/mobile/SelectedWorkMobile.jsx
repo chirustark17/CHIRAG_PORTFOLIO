@@ -13,6 +13,10 @@ const SHIMMER_CSS = `
 @keyframes shimmer-spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
+}
+@keyframes shimmer-pulse {
+  0%, 100% { opacity: 0.85; }
+  50%       { opacity: 1.0; }
 }`
 
 // Fan layout constants
@@ -45,8 +49,8 @@ function CardVisual({ item, active }) {
         borderColor: active ? 'transparent' : 'rgba(34,211,238,0.18)',
         // Shadow lives on the wrapper for active cards (overflow:hidden would clip it otherwise)
         boxShadow: active ? undefined : '0 24px 60px -20px rgba(0,0,0,0.4)',
-        // Tighten inner radius so corners look snug against the 6px shimmer gap
-        borderRadius: active ? 'calc(1.5rem - 6px)' : undefined,
+        // Tighten inner radius so corners look snug against the 7px shimmer gap
+        borderRadius: active ? 'calc(1.5rem - 7px)' : undefined,
       }}
     >
       {/* Image area: top 55% */}
@@ -110,7 +114,7 @@ function CardVisual({ item, active }) {
   return (
     <div
       className="relative w-full h-full rounded-3xl overflow-hidden"
-      style={{ padding: '6px', boxShadow: '0 24px 60px -20px rgba(0,0,0,0.4)' }}
+      style={{ padding: '7px', boxShadow: '0 24px 60px -20px rgba(0,0,0,0.4)' }}
     >
       {/* Oversized rotating div clipped to card shape — forms the traveling shimmer */}
       <div
@@ -118,9 +122,8 @@ function CardVisual({ item, active }) {
         style={{
           position: 'absolute',
           inset: '-100%',
-          opacity: 0.75,
-          background: 'conic-gradient(from 0deg, transparent 0deg, rgba(34,211,238,0.9) 40deg, rgba(139,92,246,0.9) 80deg, rgba(34,211,238,0.6) 120deg, transparent 200deg, transparent 360deg)',
-          animation: 'shimmer-spin 3.5s linear infinite',
+          background: 'conic-gradient(from 0deg, transparent 0deg, rgba(34,211,238,0.0) 20deg, rgba(34,211,238,1.0) 60deg, rgba(139,92,246,1.0) 100deg, rgba(34,211,238,0.8) 140deg, rgba(34,211,238,0.2) 180deg, transparent 220deg, transparent 360deg)',
+          animation: 'shimmer-spin 2.2s linear infinite, shimmer-pulse 1.1s ease-in-out infinite',
         }}
       />
       {article}
@@ -229,14 +232,17 @@ function Stage({
   const glowOpacity = useTransform(fanRotation, v => 0.54 + Math.min(Math.abs(v) / 20, 1) * 0.46)
   const glowScale = useTransform(fanRotation, v => 0.842 + Math.min(Math.abs(v) / 20, 1) * 0.158)
 
-  // Snap the fan to the nearest card stop and update activeIndex on completion
-  function snapToNearest() {
+  // Snap the fan to the nearest card stop, with optional flick bias from velocity
+  function snapToNearest(velocityX = 0) {
     const fr = fanRotation.get()
-    const snapOffset = Math.round(fr / FAN_STEP)
+    let snapOffset = Math.round(fr / FAN_STEP)
+    // Fast flick throws deck one extra card in the flick direction
+    if (velocityX > 200) snapOffset += 1
+    else if (velocityX < -200) snapOffset -= 1
     const nearestStop = snapOffset * FAN_STEP
     const newActive = ((activeIndex - snapOffset) % CARD_COUNT + CARD_COUNT) % CARD_COUNT
     animate(fanRotation, nearestStop, {
-      type: 'spring', stiffness: 300, damping: 28,
+      type: 'spring', stiffness: 500, damping: 22,
       onComplete: () => { setActiveIndex(newActive); fanRotation.set(0) },
     })
   }
@@ -253,7 +259,7 @@ function Stage({
     // Rotate fan so card i arrives at angle 0 (front)
     const target = -r * FAN_STEP
     animate(fanRotation, target, {
-      type: 'spring', stiffness: 400, damping: 30,
+      type: 'spring', stiffness: 550, damping: 24,
       onComplete: () => { setActiveIndex(i); fanRotation.set(0) },
     })
   }
@@ -283,8 +289,8 @@ function Stage({
       dismissHint()
       onFirstDrag()
     }
-    // Map horizontal drag to rotation: ~0.3 deg per px
-    fanRotation.set(dx * 0.3)
+    // Map horizontal drag to rotation: 0.5 deg per px
+    fanRotation.set(dx * 0.5)
     const now = Date.now()
     velocityHistoryRef.current.push({ x: e.clientX, t: now })
     velocityHistoryRef.current = velocityHistoryRef.current.filter(p => now - p.t < 100)
@@ -295,8 +301,13 @@ function Stage({
     pointerStartRef.current = null
     if (!isDraggingRef.current) { isDraggingRef.current = false; return }
     isDraggingRef.current = false
+    const history = velocityHistoryRef.current
+    const velocityX = history.length >= 2
+      ? (history[history.length - 1].x - history[0].x) /
+        Math.max(1, history[history.length - 1].t - history[0].t) * 1000
+      : 0
     velocityHistoryRef.current = []
-    snapToNearest()
+    snapToNearest(velocityX)
   }
 
   return (
