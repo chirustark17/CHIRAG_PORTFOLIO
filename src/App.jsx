@@ -7,6 +7,7 @@ import ScrollToTop from './components/ScrollToTop'
 import ReelHint from './components/ReelHint'
 import ReelButton from './components/ReelButton'
 import ReelDeck from './components/ReelDeck'
+import StarkTag from './components/StarkTag'
 import useReelTrigger from './hooks/useReelTrigger'
 import useIsMobile from './hooks/useIsMobile'
 import Hero from './sections/Hero'
@@ -29,6 +30,11 @@ function App() {
   const launchButtonRef = useRef(null)
   const isMobile = useIsMobile()
 
+  const contactRef = useRef(null)
+  const footerRef = useRef(null)
+  const [contactInView, setContactInView] = useState(false)
+  const [footerInView, setFooterInView] = useState(false)
+
   const launchReel = () => {
     dismissHint()
     setReelOpen(true)
@@ -40,6 +46,26 @@ function App() {
       localStorage.removeItem('chiragModeDismissed')
       localStorage.removeItem('chiragInviteDismissed')
     } catch {}
+  }, [])
+
+  // StarkTag visibility: show when Contact is in view, hide when Footer enters
+  useEffect(() => {
+    const contactEl = contactRef.current
+    const footerEl = footerRef.current
+    if (!contactEl || !footerEl) return
+
+    const contactObs = new IntersectionObserver(
+      ([entry]) => setContactInView(entry.isIntersecting),
+      { threshold: 0.15 }
+    )
+    const footerObs = new IntersectionObserver(
+      ([entry]) => setFooterInView(entry.isIntersecting),
+      { threshold: 0.05 }
+    )
+
+    contactObs.observe(contactEl)
+    footerObs.observe(footerEl)
+    return () => { contactObs.disconnect(); footerObs.disconnect() }
   }, [])
 
   return (
@@ -63,10 +89,11 @@ function App() {
         <Certifications />
         <Achievements />
         {isMobile ? <SelectedWorkMobile /> : <SelectedWork />}
-        <Contact />
+        <div ref={contactRef}><Contact /></div>
       </main>
-      <Footer />
+      <Footer ref={footerRef} />
       <ScrollToTop />
+      <StarkTag visible={contactInView && !footerInView} />
       <ReelButton ref={launchButtonRef} onLaunch={launchReel} />
       <ReelHint
         visible={showHint && !reelOpen}
