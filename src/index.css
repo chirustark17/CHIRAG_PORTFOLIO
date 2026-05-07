@@ -30,6 +30,9 @@
   }
 }
 
+html, body { overflow-x: clip; }
+#root { overflow-x: clip; }
+
 @layer utilities {
   .section {
     min-height: 100vh;

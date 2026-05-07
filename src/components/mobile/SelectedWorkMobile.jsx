@@ -279,7 +279,7 @@ function Stage({
 
   return (
     <div
-      className="relative w-full mx-auto"
+      className="relative w-full mx-auto overflow-hidden"
       style={{
         height: 'min(65vh, 500px)',
         maxWidth: '380px',
@@ -318,7 +318,7 @@ function Stage({
       )}
 
       {/* Pan wrapper — applies subtle whole-stage shift during drag */}
-      <motion.div className="absolute inset-0" style={{ x: panX }}>
+      <motion.div className="absolute inset-0" style={{ x: panX, touchAction: 'pan-y' }}>
         {showcase.map((item, i) => {
           const slotName = getSlot(i, activeIndex)
           const isCenter = slotName === 'center'
@@ -387,6 +387,7 @@ export default function SelectedWorkMobile() {
     <section
       id="selected-work"
       className="section relative px-5 pt-12 pb-14 flex flex-col gap-5"
+      style={{ overflowX: 'clip' }}
       aria-labelledby="selected-work-heading-mobile"
     >
       {/* Grain texture overlay */}

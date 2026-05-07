@@ -27,7 +27,8 @@ import ReelDeckMobile from './components/mobile/ReelDeckMobile'
 function App() {
   const { showHint, dismissHint } = useReelTrigger()
   const [reelOpen, setReelOpen] = useState(false)
-  const [tagVisible, setTagVisible] = useState(false)
+  const [contactInView, setContactInView] = useState(false)
+  const [nearBottom, setNearBottom] = useState(false)
   const launchButtonRef = useRef(null)
   const isMobile = useIsMobile()
 
@@ -35,11 +36,25 @@ function App() {
     const el = document.getElementById('contact')
     if (!el) return
     const observer = new IntersectionObserver(
-      ([entry]) => setTagVisible(entry.isIntersecting),
+      ([entry]) => setContactInView(entry.isIntersecting),
       { threshold: 0.1 }
     )
     observer.observe(el)
     return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    let rafId
+    function check() {
+      setNearBottom(window.innerHeight + window.scrollY >= document.body.scrollHeight - 120)
+    }
+    function onScroll() {
+      cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(check)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    check()
+    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(rafId) }
   }, [])
 
   const launchReel = () => {
@@ -79,7 +94,7 @@ function App() {
         <Contact />
       </main>
       <Footer />
-      <StarkTag visible={tagVisible} />
+      <StarkTag visible={contactInView && !nearBottom} />
       <ScrollToTop />
       <ReelButton ref={launchButtonRef} onLaunch={launchReel} />
       <ReelHint
