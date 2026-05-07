@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
+import { motion, useMotionValue, animate } from 'framer-motion'
 import showcase from '../../data/showcase'
 import { SectionHeading } from '../SectionHeading'
 import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion'
@@ -19,26 +19,26 @@ const SHIMMER_CSS = `
   50%       { opacity: 1.0; }
 }`
 
-// Fan layout constants
 const CARD_COUNT = 4
-const FAN_SPREAD = 38        // total degrees spread across all cards
-const CARD_OFFSET_Y = 12     // px — cards further from center sit slightly lower
-const CARD_SCALE_ACTIVE = 1.0
-const CARD_SCALE_ADJACENT = 0.88
-const CARD_SCALE_BACK = 0.78
-const FAN_STEP = FAN_SPREAD / (CARD_COUNT - 1)  // ~12.67 degrees per position
 
-// useTransform input/output ranges for drag → rotation mapping
-const DRAG_RANGE = 300   // px
-const ROT_RANGE  = 15    // degrees of fan shift over DRAG_RANGE
-// px of drag needed to visually advance one card to front position
-const DRAG_PER_STEP = FAN_STEP * DRAG_RANGE / ROT_RANGE  // ~253px
+// Fixed slot positions — cards animate between these, slots themselves never move
+const SLOTS = {
+  hidden_left:  { x: -280, rotate: -20, scale: 0.72, opacity: 0   },
+  left:         { x: -95,  rotate: -12, scale: 0.85, opacity: 0.8 },
+  center:       { x: 0,    rotate: 0,   scale: 1.0,  opacity: 1   },
+  right:        { x: 95,   rotate: 12,  scale: 0.85, opacity: 0.8 },
+  hidden_right: { x: 280,  rotate: 20,  scale: 0.72, opacity: 0   },
+}
 
-// Normalize raw relative position to the range closest to 0 for circular wrapping
-function normalizeRelPos(raw) {
-  let r = ((raw % CARD_COUNT) + CARD_COUNT) % CARD_COUNT
-  if (r > CARD_COUNT / 2) r -= CARD_COUNT
-  return r
+// zIndex is kept separate — snaps immediately on slot change, never tweened
+const SLOT_Z = { hidden_left: 1, left: 2, center: 4, right: 2, hidden_right: 1 }
+
+// Circular slot assignment: rel offset 0→center, 1→right, 2→hidden_right, 3→left
+const SLOT_ORDER = ['center', 'right', 'hidden_right', 'left']
+
+function getSlot(cardIndex, activeIndex) {
+  const rel = ((cardIndex - activeIndex) % CARD_COUNT + CARD_COUNT) % CARD_COUNT
+  return SLOT_ORDER[rel]
 }
 
 // ─── CardVisual ───────────────────────────────────────────────────────────────
@@ -51,11 +51,8 @@ function CardVisual({ item, active }) {
       style={{
         position: 'relative',
         zIndex: 1,
-        // Active card: shimmer wrapper provides the border effect; suppress the static border
         borderColor: active ? 'transparent' : 'rgba(34,211,238,0.18)',
-        // Shadow lives on the wrapper for active cards (overflow:hidden would clip it otherwise)
         boxShadow: active ? undefined : '0 24px 60px -20px rgba(0,0,0,0.4)',
-        // Tighten inner radius so corners look snug against the 7px shimmer gap
         borderRadius: active ? 'calc(1.5rem - 7px)' : undefined,
       }}
     >
@@ -76,9 +73,7 @@ function CardVisual({ item, active }) {
         ) : (
           <div
             className="w-full h-full flex items-center justify-center font-serif text-2xl text-bone-50/70 p-6 text-center"
-            style={{
-              background: 'linear-gradient(135deg, rgba(34,211,238,0.18), rgba(124,58,237,0.18))',
-            }}
+            style={{ background: 'linear-gradient(135deg, rgba(34,211,238,0.18), rgba(124,58,237,0.18))' }}
           >
             {item.title}
           </div>
@@ -113,7 +108,6 @@ function CardVisual({ item, active }) {
     </article>
   )
 
-  // Peek cards (inactive) — plain card, no shimmer
   if (!active) return article
 
   // Active card — wrapped in shimmer border
@@ -122,7 +116,6 @@ function CardVisual({ item, active }) {
       className="relative w-full h-full rounded-3xl overflow-hidden"
       style={{ padding: '7px', boxShadow: '0 24px 60px -20px rgba(0,0,0,0.4)' }}
     >
-      {/* Oversized rotating div clipped to card shape — forms the traveling shimmer */}
       <div
         aria-hidden
         style={{
@@ -137,41 +130,23 @@ function CardVisual({ item, active }) {
   )
 }
 
-// ─── FanCard ──────────────────────────────────────────────────────────────────
-// Each card owns its useTransform calls — array-form so Framer uses its built-in
-// interpolate function directly, no custom JS per frame.
-function FanCard({ item, index, activeIndex, dragX, onTap, reducedMotion }) {
-  const relPos = normalizeRelPos(index - activeIndex)
-  const absPos = Math.abs(relPos)
-  const isActive = absPos === 0
-  const baseAngle = relPos * FAN_STEP
-  const baseScale = isActive ? CARD_SCALE_ACTIVE : absPos === 1 ? CARD_SCALE_ADJACENT : CARD_SCALE_BACK
-  // Active card slightly deflates as it drags away from rest
-  const scaleAway = isActive ? CARD_SCALE_ADJACENT : baseScale
-
-  const rot   = useTransform(dragX, [-DRAG_RANGE, 0, DRAG_RANGE], [baseAngle - ROT_RANGE, baseAngle, baseAngle + ROT_RANGE])
-  const scale = useTransform(dragX, [-150, 0, 150], [scaleAway, baseScale, scaleAway])
-
-  // Cards at abs >= 2 are hidden — opacity 0 prevents visible teleport on activeIndex change
-  const opacity = absPos <= 1 ? 1 : 0
-  const zIdx = CARD_COUNT - absPos
-  const ty = absPos * CARD_OFFSET_Y
+// ─── SlotCard ─────────────────────────────────────────────────────────────────
+// Pure declarative: animates to its slot whenever slotName changes.
+// No motionValues, no useTransform — Framer springs from old slot to new.
+function SlotCard({ item, slotName, isCenter, onTap, reducedMotion }) {
+  const target = reducedMotion
+    ? { x: SLOTS[slotName].x, rotate: 0, scale: SLOTS[slotName].scale, opacity: SLOTS[slotName].opacity }
+    : SLOTS[slotName]
 
   return (
     <motion.div
-      className="absolute inset-0"
-      style={{
-        rotate:      reducedMotion ? baseAngle : rot,
-        scale:       reducedMotion ? baseScale : scale,
-        translateY:  ty,
-        opacity,
-        zIndex:      zIdx,
-        transformOrigin: 'center 160%',
-        cursor: 'pointer',
-      }}
+      className="absolute inset-0 cursor-pointer"
+      style={{ zIndex: SLOT_Z[slotName] }}
+      animate={target}
+      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
       onClick={onTap}
     >
-      <CardVisual item={item} active={isActive} />
+      <CardVisual item={item} active={isCenter} />
     </motion.div>
   )
 }
@@ -235,49 +210,19 @@ function Stage({
   dismissHint, reducedMotion, hintVisible, hintCycleCount,
   onFirstDrag,
 }) {
-  // dragX lives here — raw pixel offset from drag start, set directly with no multiplication
-  const dragX = useMotionValue(0)
+  // Subtle tactile pan shift of the whole stage during drag — springs back on release
+  const panX = useMotionValue(0)
 
   const didDragRef = useRef(false)
   const isDraggingRef = useRef(false)
   const pointerStartRef = useRef(null)
+  const lastDxRef = useRef(0)
   const velocityHistoryRef = useRef([])
-
-  // Glow brightens symmetrically as drag magnitude increases (array-form)
-  const glowOpacity = useTransform(dragX, [-150, 0, 150], [1.0, 0.54, 1.0])
-  const glowScale   = useTransform(dragX, [-150, 0, 150], [1.0, 0.842, 1.0])
-
-  // Animate dragX to the position where card `advance` steps away lands at front,
-  // then on complete swap activeIndex and reset dragX — visually seamless because
-  // the angles are identical: relPos*FAN_STEP + targetDx*(ROT_RANGE/DRAG_RANGE) = 0
-  function commitAdvance(advance) {
-    if (advance === 0) {
-      animate(dragX, 0, { type: 'spring', stiffness: 500, damping: 22 })
-      return
-    }
-    const targetDx  = -advance * DRAG_PER_STEP
-    const newActive = (activeIndex + advance + CARD_COUNT) % CARD_COUNT
-    animate(dragX, targetDx, {
-      type: 'spring', stiffness: 500, damping: 22,
-      onComplete: () => { setActiveIndex(newActive); dragX.set(0) },
-    })
-  }
-
-  function handleCardTap(i) {
-    if (didDragRef.current) return
-    const r = normalizeRelPos(i - activeIndex)
-    if (r === 0) {
-      const href = showcase[i]?.href
-      if (href) window.open(href, '_blank', 'noopener,noreferrer')
-      return
-    }
-    // r=1 (right card) → advance 1 forward; r=-1 (left) → advance -1 (backward)
-    commitAdvance(r)
-  }
 
   function handlePointerDown(e) {
     didDragRef.current = false
     isDraggingRef.current = false
+    lastDxRef.current = 0
     velocityHistoryRef.current = []
     pointerStartRef.current = { x: e.clientX, y: e.clientY }
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -289,10 +234,8 @@ function Stage({
     const dy = e.clientY - pointerStartRef.current.y
     if (!isDraggingRef.current) {
       if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return
-      // Cancel if gesture is primarily vertical
       if (Math.abs(dy) > Math.abs(dx) * 1.5) {
         pointerStartRef.current = null
-        dragX.set(0)
         return
       }
       isDraggingRef.current = true
@@ -300,8 +243,9 @@ function Stage({
       dismissHint()
       onFirstDrag()
     }
-    // Raw pixels — no multiplication; useTransform in FanCard handles the mapping
-    dragX.set(dx)
+    lastDxRef.current = dx
+    // Subtle whole-stage shift gives tactile connection to finger
+    panX.set(dx * 0.15)
     const now = Date.now()
     velocityHistoryRef.current.push({ x: e.clientX, t: now })
     velocityHistoryRef.current = velocityHistoryRef.current.filter(p => now - p.t < 100)
@@ -310,22 +254,27 @@ function Stage({
   function handlePointerUp() {
     if (!pointerStartRef.current) return
     pointerStartRef.current = null
+    // Always spring pan back to rest
+    animate(panX, 0, { type: 'spring', stiffness: 500, damping: 25 })
     if (!isDraggingRef.current) { isDraggingRef.current = false; return }
     isDraggingRef.current = false
+
     const history = velocityHistoryRef.current
     const velocityX = history.length >= 2
       ? (history[history.length - 1].x - history[0].x) /
         Math.max(1, history[history.length - 1].t - history[0].t) * 1000
       : 0
     velocityHistoryRef.current = []
-    const dx = dragX.get()
-    // Velocity takes priority over displacement for flick detection
+    const dx = lastDxRef.current
+    lastDxRef.current = 0
+
+    // Velocity takes priority; displacement is fallback
     let advance = 0
-    if      (velocityX >  200) advance = -1
-    else if (velocityX < -200) advance =  1
-    else if (dx >  60)         advance = -1
-    else if (dx < -60)         advance =  1
-    commitAdvance(advance)
+    if      (velocityX < -300 || dx < -50) advance =  1
+    else if (velocityX >  300 || dx >  50) advance = -1
+    if (advance !== 0) {
+      setActiveIndex(i => (i + advance + CARD_COUNT) % CARD_COUNT)
+    }
   }
 
   return (
@@ -341,46 +290,60 @@ function Stage({
       onPointerMove={reducedMotion ? undefined : handlePointerMove}
       onPointerUp={reducedMotion ? undefined : handlePointerUp}
       onPointerCancel={reducedMotion ? undefined : handlePointerUp}
-      aria-label="Featured projects fan deck"
+      aria-label="Featured projects carousel"
       aria-roledescription="carousel"
       tabIndex={0}
       onKeyDown={(e) => {
         if (reducedMotion) return
-        if (e.key === 'ArrowLeft')  { e.preventDefault(); handleCardTap((activeIndex + 1) % CARD_COUNT) }
-        if (e.key === 'ArrowRight') { e.preventDefault(); handleCardTap((activeIndex - 1 + CARD_COUNT) % CARD_COUNT) }
+        if (e.key === 'ArrowLeft')  { e.preventDefault(); setActiveIndex(i => (i + 1) % CARD_COUNT) }
+        if (e.key === 'ArrowRight') { e.preventDefault(); setActiveIndex(i => (i - 1 + CARD_COUNT) % CARD_COUNT) }
       }}
     >
-      {/* Ambient cyan glow — brightens with drag magnitude */}
+      {/* Ambient cyan glow — fixed at center */}
       {!reducedMotion && (
-        <motion.div
+        <div
           aria-hidden
           className="absolute pointer-events-none rounded-full"
           style={{
-            scale: glowScale,
-            opacity: glowOpacity,
             width: 380,
             height: 380,
             top: 'calc(50% - 190px)',
             left: 'calc(50% - 190px)',
-            background: 'radial-gradient(circle, rgba(34,211,238,0.65) 0%, rgba(34,211,238,0.15) 45%, transparent 70%)',
+            background: 'radial-gradient(circle, rgba(34,211,238,0.55) 0%, rgba(34,211,238,0.12) 45%, transparent 70%)',
             filter: 'blur(24px)',
+            opacity: 0.65,
             zIndex: 0,
           }}
         />
       )}
 
-      {/* All 4 cards rendered simultaneously, each driven by the shared dragX */}
-      {showcase.map((item, i) => (
-        <FanCard
-          key={i}
-          item={item}
-          index={i}
-          activeIndex={activeIndex}
-          dragX={dragX}
-          onTap={() => handleCardTap(i)}
-          reducedMotion={reducedMotion}
-        />
-      ))}
+      {/* Pan wrapper — applies subtle whole-stage shift during drag */}
+      <motion.div className="absolute inset-0" style={{ x: panX }}>
+        {showcase.map((item, i) => {
+          const slotName = getSlot(i, activeIndex)
+          const isCenter = slotName === 'center'
+          return (
+            <SlotCard
+              key={i}
+              item={item}
+              slotName={slotName}
+              isCenter={isCenter}
+              reducedMotion={reducedMotion}
+              onTap={() => {
+                if (didDragRef.current) return
+                if (isCenter) {
+                  const href = showcase[i]?.href
+                  if (href) window.open(href, '_blank', 'noopener,noreferrer')
+                } else if (slotName === 'left') {
+                  setActiveIndex(i => (i - 1 + CARD_COUNT) % CARD_COUNT)
+                } else if (slotName === 'right') {
+                  setActiveIndex(i => (i + 1) % CARD_COUNT)
+                }
+              }}
+            />
+          )
+        })}
+      </motion.div>
 
       {hintVisible && !reducedMotion && <SwipeHint cycle={hintCycleCount} />}
     </div>
@@ -461,7 +424,7 @@ export default function SelectedWorkMobile() {
           style={{ fontSize: 11, opacity: 0.4, marginTop: -8 }}
           aria-hidden
         >
-          drag to spin
+          swipe between projects
         </p>
       )}
 
