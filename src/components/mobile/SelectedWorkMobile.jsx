@@ -23,11 +23,11 @@ const CARD_COUNT = 4
 
 // Fixed slot positions — cards animate between these, slots themselves never move
 const SLOTS = {
-  hidden_left:  { x: -280, rotate: -20, scale: 0.72, opacity: 0   },
-  left:         { x: -95,  rotate: -12, scale: 0.85, opacity: 0.8 },
+  hidden_left:  { x: -280, rotate: -14, scale: 0.72, opacity: 0   },
+  left:         { x: -95,  rotate: -7,  scale: 0.85, opacity: 0.8 },
   center:       { x: 0,    rotate: 0,   scale: 1.0,  opacity: 1   },
-  right:        { x: 95,   rotate: 12,  scale: 0.85, opacity: 0.8 },
-  hidden_right: { x: 280,  rotate: 20,  scale: 0.72, opacity: 0   },
+  right:        { x: 95,   rotate: 7,   scale: 0.85, opacity: 0.8 },
+  hidden_right: { x: 280,  rotate: 14,  scale: 0.72, opacity: 0   },
 }
 
 // zIndex is kept separate — snaps immediately on slot change, never tweened
@@ -143,7 +143,7 @@ function SlotCard({ item, slotName, isCenter, onTap, reducedMotion }) {
       className="absolute inset-0 cursor-pointer"
       style={{ zIndex: SLOT_Z[slotName] }}
       animate={target}
-      transition={{ type: 'spring', stiffness: 260, damping: 32, mass: 1.1 }}
+      transition={{ type: 'spring', stiffness: 340, damping: 30, mass: 0.9 }}
       onClick={onTap}
     >
       <CardVisual item={item} active={isCenter} />
@@ -244,8 +244,8 @@ function Stage({
       onFirstDrag()
     }
     lastDxRef.current = dx
-    // Subtle whole-stage shift gives tactile connection to finger
-    panX.set(dx * 0.15)
+    // 1:1 finger tracking during drag — no scaling
+    panX.set(dx)
     const now = Date.now()
     velocityHistoryRef.current.push({ x: e.clientX, t: now })
     velocityHistoryRef.current = velocityHistoryRef.current.filter(p => now - p.t < 100)
@@ -255,7 +255,7 @@ function Stage({
     if (!pointerStartRef.current) return
     pointerStartRef.current = null
     // Always spring pan back to rest
-    animate(panX, 0, { type: 'spring', stiffness: 500, damping: 25 })
+    animate(panX, 0, { type: 'spring', stiffness: 500, damping: 30 })
     if (!isDraggingRef.current) { isDraggingRef.current = false; return }
     isDraggingRef.current = false
 
@@ -270,8 +270,8 @@ function Stage({
 
     // Velocity takes priority; displacement is fallback
     let advance = 0
-    if      (velocityX < -300 || dx < -50) advance =  1
-    else if (velocityX >  300 || dx >  50) advance = -1
+    if      (velocityX < -250 || dx < -45) advance =  1
+    else if (velocityX >  250 || dx >  45) advance = -1
     if (advance !== 0) {
       const next = (activeIndex + advance + CARD_COUNT) % CARD_COUNT
       requestAnimationFrame(() => setActiveIndex(next))
