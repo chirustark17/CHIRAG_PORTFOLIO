@@ -28,7 +28,13 @@ const CARD_SCALE_ADJACENT = 0.88
 const CARD_SCALE_BACK = 0.78
 const FAN_STEP = FAN_SPREAD / (CARD_COUNT - 1)  // ~12.67 degrees per position
 
-// Normalize raw relative position to [-floor(n/2), floor(n/2)] for circular wrapping
+// useTransform input/output ranges for drag → rotation mapping
+const DRAG_RANGE = 300   // px
+const ROT_RANGE  = 15    // degrees of fan shift over DRAG_RANGE
+// px of drag needed to visually advance one card to front position
+const DRAG_PER_STEP = FAN_STEP * DRAG_RANGE / ROT_RANGE  // ~253px
+
+// Normalize raw relative position to the range closest to 0 for circular wrapping
 function normalizeRelPos(raw) {
   let r = ((raw % CARD_COUNT) + CARD_COUNT) % CARD_COUNT
   if (r > CARD_COUNT / 2) r -= CARD_COUNT
@@ -132,15 +138,21 @@ function CardVisual({ item, active }) {
 }
 
 // ─── FanCard ──────────────────────────────────────────────────────────────────
-function FanCard({ item, index, activeIndex, fanRotation, onTap, reducedMotion }) {
+// Each card owns its useTransform calls — array-form so Framer uses its built-in
+// interpolate function directly, no custom JS per frame.
+function FanCard({ item, index, activeIndex, dragX, onTap, reducedMotion }) {
   const relPos = normalizeRelPos(index - activeIndex)
   const absPos = Math.abs(relPos)
   const isActive = absPos === 0
   const baseAngle = relPos * FAN_STEP
-  // Derived rotation: base fan angle + live fanRotation offset
-  const rot = useTransform(fanRotation, v => baseAngle + v)
-  const scale = isActive ? CARD_SCALE_ACTIVE : absPos === 1 ? CARD_SCALE_ADJACENT : CARD_SCALE_BACK
-  // Cards at abs >= 2 are hidden behind — opacity 0 avoids visible teleport on activeIndex change
+  const baseScale = isActive ? CARD_SCALE_ACTIVE : absPos === 1 ? CARD_SCALE_ADJACENT : CARD_SCALE_BACK
+  // Active card slightly deflates as it drags away from rest
+  const scaleAway = isActive ? CARD_SCALE_ADJACENT : baseScale
+
+  const rot   = useTransform(dragX, [-DRAG_RANGE, 0, DRAG_RANGE], [baseAngle - ROT_RANGE, baseAngle, baseAngle + ROT_RANGE])
+  const scale = useTransform(dragX, [-150, 0, 150], [scaleAway, baseScale, scaleAway])
+
+  // Cards at abs >= 2 are hidden — opacity 0 prevents visible teleport on activeIndex change
   const opacity = absPos <= 1 ? 1 : 0
   const zIdx = CARD_COUNT - absPos
   const ty = absPos * CARD_OFFSET_Y
@@ -149,11 +161,11 @@ function FanCard({ item, index, activeIndex, fanRotation, onTap, reducedMotion }
     <motion.div
       className="absolute inset-0"
       style={{
-        rotate: reducedMotion ? baseAngle : rot,
-        translateY: ty,
-        scale,
+        rotate:      reducedMotion ? baseAngle : rot,
+        scale:       reducedMotion ? baseScale : scale,
+        translateY:  ty,
         opacity,
-        zIndex: zIdx,
+        zIndex:      zIdx,
         transformOrigin: 'center 160%',
         cursor: 'pointer',
       }}
@@ -219,35 +231,38 @@ function PipIndicator({ total, active }) {
 
 // ─── Stage ───────────────────────────────────────────────────────────────────
 function Stage({
-  showcase, activeIndex, setActiveIndex, fanRotation,
+  showcase, activeIndex, setActiveIndex,
   dismissHint, reducedMotion, hintVisible, hintCycleCount,
   onFirstDrag,
 }) {
+  // dragX lives here — raw pixel offset from drag start, set directly with no multiplication
+  const dragX = useMotionValue(0)
+
   const didDragRef = useRef(false)
   const isDraggingRef = useRef(false)
   const pointerStartRef = useRef(null)
   const velocityHistoryRef = useRef([])
 
-  // Glow brightens/expands as fan rotates away from rest
-  const glowOpacity = useTransform(fanRotation, v => 0.54 + Math.min(Math.abs(v) / 20, 1) * 0.46)
-  const glowScale = useTransform(fanRotation, v => 0.842 + Math.min(Math.abs(v) / 20, 1) * 0.158)
+  // Glow brightens symmetrically as drag magnitude increases (array-form)
+  const glowOpacity = useTransform(dragX, [-150, 0, 150], [1.0, 0.54, 1.0])
+  const glowScale   = useTransform(dragX, [-150, 0, 150], [1.0, 0.842, 1.0])
 
-  // Snap the fan to the nearest card stop, with optional flick bias from velocity
-  function snapToNearest(velocityX = 0) {
-    const fr = fanRotation.get()
-    let snapOffset = Math.round(fr / FAN_STEP)
-    // Fast flick throws deck one extra card in the flick direction
-    if (velocityX > 200) snapOffset += 1
-    else if (velocityX < -200) snapOffset -= 1
-    const nearestStop = snapOffset * FAN_STEP
-    const newActive = ((activeIndex - snapOffset) % CARD_COUNT + CARD_COUNT) % CARD_COUNT
-    animate(fanRotation, nearestStop, {
+  // Animate dragX to the position where card `advance` steps away lands at front,
+  // then on complete swap activeIndex and reset dragX — visually seamless because
+  // the angles are identical: relPos*FAN_STEP + targetDx*(ROT_RANGE/DRAG_RANGE) = 0
+  function commitAdvance(advance) {
+    if (advance === 0) {
+      animate(dragX, 0, { type: 'spring', stiffness: 500, damping: 22 })
+      return
+    }
+    const targetDx  = -advance * DRAG_PER_STEP
+    const newActive = (activeIndex + advance + CARD_COUNT) % CARD_COUNT
+    animate(dragX, targetDx, {
       type: 'spring', stiffness: 500, damping: 22,
-      onComplete: () => { setActiveIndex(newActive); fanRotation.set(0) },
+      onComplete: () => { setActiveIndex(newActive); dragX.set(0) },
     })
   }
 
-  // Tap on any card: bring non-active cards to front, open link for active card
   function handleCardTap(i) {
     if (didDragRef.current) return
     const r = normalizeRelPos(i - activeIndex)
@@ -256,12 +271,8 @@ function Stage({
       if (href) window.open(href, '_blank', 'noopener,noreferrer')
       return
     }
-    // Rotate fan so card i arrives at angle 0 (front)
-    const target = -r * FAN_STEP
-    animate(fanRotation, target, {
-      type: 'spring', stiffness: 550, damping: 24,
-      onComplete: () => { setActiveIndex(i); fanRotation.set(0) },
-    })
+    // r=1 (right card) → advance 1 forward; r=-1 (left) → advance -1 (backward)
+    commitAdvance(r)
   }
 
   function handlePointerDown(e) {
@@ -281,7 +292,7 @@ function Stage({
       // Cancel if gesture is primarily vertical
       if (Math.abs(dy) > Math.abs(dx) * 1.5) {
         pointerStartRef.current = null
-        fanRotation.set(0)
+        dragX.set(0)
         return
       }
       isDraggingRef.current = true
@@ -289,8 +300,8 @@ function Stage({
       dismissHint()
       onFirstDrag()
     }
-    // Map horizontal drag to rotation: 0.5 deg per px
-    fanRotation.set(dx * 0.5)
+    // Raw pixels — no multiplication; useTransform in FanCard handles the mapping
+    dragX.set(dx)
     const now = Date.now()
     velocityHistoryRef.current.push({ x: e.clientX, t: now })
     velocityHistoryRef.current = velocityHistoryRef.current.filter(p => now - p.t < 100)
@@ -307,7 +318,14 @@ function Stage({
         Math.max(1, history[history.length - 1].t - history[0].t) * 1000
       : 0
     velocityHistoryRef.current = []
-    snapToNearest(velocityX)
+    const dx = dragX.get()
+    // Velocity takes priority over displacement for flick detection
+    let advance = 0
+    if      (velocityX >  200) advance = -1
+    else if (velocityX < -200) advance =  1
+    else if (dx >  60)         advance = -1
+    else if (dx < -60)         advance =  1
+    commitAdvance(advance)
   }
 
   return (
@@ -328,11 +346,11 @@ function Stage({
       tabIndex={0}
       onKeyDown={(e) => {
         if (reducedMotion) return
-        if (e.key === 'ArrowLeft') { e.preventDefault(); handleCardTap((activeIndex + 1) % CARD_COUNT) }
+        if (e.key === 'ArrowLeft')  { e.preventDefault(); handleCardTap((activeIndex + 1) % CARD_COUNT) }
         if (e.key === 'ArrowRight') { e.preventDefault(); handleCardTap((activeIndex - 1 + CARD_COUNT) % CARD_COUNT) }
       }}
     >
-      {/* Ambient cyan glow — brightens with rotation magnitude */}
+      {/* Ambient cyan glow — brightens with drag magnitude */}
       {!reducedMotion && (
         <motion.div
           aria-hidden
@@ -351,14 +369,14 @@ function Stage({
         />
       )}
 
-      {/* All 4 cards rendered simultaneously, each at their fan position */}
+      {/* All 4 cards rendered simultaneously, each driven by the shared dragX */}
       {showcase.map((item, i) => (
         <FanCard
           key={i}
           item={item}
           index={i}
           activeIndex={activeIndex}
-          fanRotation={fanRotation}
+          dragX={dragX}
           onTap={() => handleCardTap(i)}
           reducedMotion={reducedMotion}
         />
@@ -376,7 +394,6 @@ export default function SelectedWorkMobile() {
   const [hintCycleCount, setHintCycleCount] = useState(0)
   const [hasDragged, setHasDragged] = useState(false)
   const reducedMotion = usePrefersReducedMotion()
-  const fanRotation = useMotionValue(0)
   const total = showcase.length
 
   useEffect(() => {
@@ -428,7 +445,6 @@ export default function SelectedWorkMobile() {
         showcase={showcase}
         activeIndex={activeIndex}
         setActiveIndex={setActiveIndex}
-        fanRotation={fanRotation}
         dismissHint={dismissHint}
         reducedMotion={reducedMotion}
         hintVisible={hintVisible}
